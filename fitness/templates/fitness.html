@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Fitness{% endblock %}
+
+{% block content %}
+<h1>Fitness</h1>
+
+<h2>VO2max</h2>
+<div class="chart">
+  <canvas id="vo2max-chart" data-points='{{ vo2max | tojson }}'></canvas>
+</div>
+
+<script src="{{ url_for('static', filename='fitness.js') }}"></script>
+{% endblock %}
