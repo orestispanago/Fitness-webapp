@@ -132,8 +132,8 @@ returns every day. Nulls render as gaps in the line charts.
 
 | Table | Columns | Notes |
 |---|---|---|
-| `base_hr_runs` | `activity_id` (PK), `start_time_local`, `distance_m`, `duration_s`, `avg_hr` (NOT NULL), `location` (nullable), `activity_name` (NOT NULL) | Only rows where `activityType == "running"` and the activity name contains `Base-HR` (the run-type marker). Names follow `<Location> - Base-HR` (e.g. `Jeddah - Base-HR`); `location` is the part before ` - `, null if the name has no ` - `. Fetch: `get_activities_by_date`. Refresh: start at `FIRST_DATA_DATE` if empty, else same calendar day as `MAX(start_time_local)` (not +1 day, to avoid missing a second same-day activity a prior refresh only partially caught); insert-if-not-exists by `activity_id`. |
-| `laps` | `activity_id` (FK → `base_hr_runs`, `ON DELETE CASCADE`), `lap_index`, `distance_m`, `duration_s`, `avg_hr` (all NOT NULL); PK `(activity_id, lap_index)` | Fetched once per activity via `get_activity_splits` (`lapDTOs` only, `eventDTOs` dropped). Inserted once when the run is first stored — no refresh-overlap, laps don't change after the fact. |
+| `base_hr_runs` | `activity_id` (PK), `start_time_local`, `distance_m`, `duration_s`, `avg_hr` (NOT NULL), `location` (nullable), `activity_name` (NOT NULL) | Only rows where `activityType == "running"` and the activity name contains `Base-HR` (the run-type marker). Names follow `<Location> - Base-HR` (e.g. `Jeddah - Base-HR`); `location` is the part before ` - `, null if the name has no ` - `. Fetch: `get_activities_by_date(start, end, "running")`, then the type and name check above; `duration_s` = `duration`, `avg_hr` = `averageHR` rounded. Pace is derived when charting (`duration_s / distance_m`, shown as `m:ss /km`), not stored. Refresh: start at `FIRST_DATA_DATE` if empty, else same calendar day as `MAX(start_time_local)` (not +1 day, to avoid missing a second same-day activity a prior refresh only partially caught); insert-if-not-exists by `activity_id` (`store_new_base_hr_runs`, `INSERT OR IGNORE`; the sync log shows runs found vs. new). |
+| `laps` | `activity_id` (FK → `base_hr_runs`, `ON DELETE CASCADE`), `lap_index`, `distance_m`, `duration_s`, `avg_hr` (all NOT NULL); PK `(activity_id, lap_index)` | Fetched once per activity via `get_activity_splits` (`lapDTOs` only, `eventDTOs` dropped). Each sync fetches laps for every stored run that has none yet (`runs_without_laps`) — normally just the newly stored runs, but it also backfills and retries after a failed fetch; no refresh-overlap, laps don't change after the fact. `lap_index` = Garmin's `lapIndex` (1-based). Laps without `averageHR` or `distance` are skipped. All laps are stored, including the short final lap (typically 10–60 m). Pace fade (`queries.load_pace_fade`) = pace of the last full-km lap minus the first full-km lap, in s/km (positive = slowed down); a lap counts as a full km if `distance_m >= FULL_KM_MIN_M` (950), which excludes that short final lap |
 
 ### Strength page (3 tables)
 
@@ -185,7 +185,8 @@ All paths below are inside `fitness/`.
   - `daily.py` — the six fitness-page tables, `daily_start_date`, and
     the per-endpoint range limits (`RESTING_HR_MAX_DAYS`,
     `HRV_MAX_DAYS`).
-  - `running.py`, `strength.py` — to come with their slices.
+  - `running.py` — `base_hr_runs` and `laps`.
+  - `strength.py` — to come with its slice.
 
   Fully self-contained: opens its own connection, commits, and closes it
   on every run, independent of Flask's per-request connection in `db.py`.
@@ -216,15 +217,23 @@ All paths below are inside `fitness/`.
   inline JS or CSS.
 - Static files: `static/style.css` holds all styling. One JS file per
   page (`static/fitness.js`, `static/running.js`, `static/strength.js`),
-  loaded at the end of that page's template. `fitness.js` defines
-  `dailyScales(yTitle)` (real-date x-axis, titled y-axis) and
-  `dailyLineChart(canvasId, label, yTitle)` for single-series daily
-  line charts (nulls as gaps). All daily charts use
-  `interaction: { mode: "index", intersect: false }`, so hovering
-  anywhere shows the tooltip for the nearest date; charts that don't fit it (e.g. sleep's two
-  lines, read from `data-duration` / `data-need`) get their own
-  `new Chart(...)` reusing `dailyScales`. `dailyLineChart` takes optional Chart.js plugins; `bandsPlugin(bands)` shades labelled horizontal ranges behind the data (used for the ACWR status zones). Helpers stay per page until another page needs the
-  same one — same "wait for real duplication" principle as `sync/`.
+  loaded at the end of that page's template, plus `static/charts.js`
+  with helpers shared by every page, loaded from `base.html` after
+  Chart.js:
+  - `dailyScales(yTitle)` — real-date x-axis, titled y-axis.
+  - `dailyLineChart(canvasId, label, yTitle, plugins)` — single-series
+    line chart (nulls as gaps), optional Chart.js plugins.
+  - `bandsPlugin(bands)` — shades labelled horizontal ranges behind the
+    data (used for the ACWR status zones).
+
+  All date charts use `interaction: { mode: "index", intersect: false }`,
+  so hovering anywhere shows the tooltip for the nearest date. Charts
+  that don't fit `dailyLineChart` (sleep's two lines, read from
+  `data-duration` / `data-need`; pace with `m:ss` formatting) get their
+  own `new Chart(...)` reusing `dailyScales`. Page-specific helpers
+  (`ACWR_BANDS`, `formatHours`, `formatPace`) stay in the page's file
+  until another page needs them — same "wait for real duplication"
+  principle as `sync/`.
 - Chart data flow: a route calls `queries.py`, which returns a plain
   Python data structure; the route passes it into the template context,
   and the template puts it on the chart's `<canvas>` as a single-quoted
@@ -258,5 +267,12 @@ All paths below are inside `fitness/`.
   the schema evolves.
 - Status: all six fitness-page slices done (`vo2max`, `resting_hr`,
   `hrv`, `weight`, `sleep`, `training_load`); sync code split into the
-  `sync/` package. Next slice not yet chosen. The nav in
+  `sync/` package. Running page in progress, built in steps:
+  1. done — `base_hr_runs` sync + `/running` page with a pace chart;
+  2. done — duration (minutes to 1 dp) and average heart-rate charts,
+     both `dailyLineChart`;
+  3. pace vs. HR by location — not yet;
+  4. done — `laps` sync + pace-fade chart.
+
+  The nav in
   `base.html` only links pages that exist; it grows as pages are added.

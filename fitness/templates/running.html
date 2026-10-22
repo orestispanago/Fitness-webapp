@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Running{% endblock %}
+
+{% block content %}
+<h1>Running (base-HR runs)</h1>
+
+<h2>Pace</h2>
+<div class="chart">
+  <canvas id="pace-chart" data-points='{{ pace | tojson }}'></canvas>
+</div>
+
+<h2>Duration</h2>
+<div class="chart">
+  <canvas id="duration-chart" data-points='{{ duration | tojson }}'></canvas>
+</div>
+
+<h2>Average heart rate</h2>
+<div class="chart">
+  <canvas id="run-hr-chart" data-points='{{ run_hr | tojson }}'></canvas>
+</div>
+
+<h2>Pace fade (last km − first km)</h2>
+<div class="chart">
+  <canvas id="pace-fade-chart" data-points='{{ pace_fade | tojson }}'></canvas>
+</div>
+
+<script src="{{ url_for('static', filename='running.js') }}"></script>
+{% endblock %}

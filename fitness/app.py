@@ -28,3 +28,18 @@ def fitness_page():
         sleep=sleep,
         acwr=acwr,
     )
+
+
+@app.route("/running")
+def running_page():
+    pace = queries.load_run_pace()
+    duration = queries.load_run_duration()
+    run_hr = queries.load_run_hr()
+    pace_fade = queries.load_pace_fade()
+    return render_template(
+        "running.html",
+        pace=pace,
+        duration=duration,
+        run_hr=run_hr,
+        pace_fade=pace_fade,
+    )
