@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS hrv (
 
 CREATE TABLE IF NOT EXISTS weight (
     calendar_date TEXT NOT NULL PRIMARY KEY,
-    weight_kg REAL
+    weight_kg REAL NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS sleep (

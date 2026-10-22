@@ -11,3 +11,5 @@ PASSWORD = os.getenv("PASSWORD")
 TOKEN_PATH = os.path.join(PROJECT_ROOT, ".token")
 DB_PATH = os.path.join(PROJECT_ROOT, "fitness.db")
 SCHEMA_PATH = os.path.join(PACKAGE_DIR, "schema.sql")
+
+FIRST_DATA_DATE = "2026-06-28"

@@ -10,5 +10,31 @@
   <canvas id="vo2max-chart" data-points='{{ vo2max | tojson }}'></canvas>
 </div>
 
+<h2>Resting heart rate</h2>
+<div class="chart">
+  <canvas id="resting-hr-chart" data-points='{{ resting_hr | tojson }}'></canvas>
+</div>
+
+<h2>HRV (overnight average)</h2>
+<div class="chart">
+  <canvas id="hrv-chart" data-points='{{ hrv | tojson }}'></canvas>
+</div>
+
+<h2>Weight</h2>
+<div class="chart">
+  <canvas id="weight-chart" data-points='{{ weight | tojson }}'></canvas>
+</div>
+
+<h2>Sleep vs. sleep need</h2>
+<div class="chart">
+  <canvas id="sleep-chart" data-duration='{{ sleep.duration | tojson }}'
+    data-need='{{ sleep.need | tojson }}'></canvas>
+</div>
+
+<h2>Training load (ACWR)</h2>
+<div class="chart">
+  <canvas id="acwr-chart" data-points='{{ acwr | tojson }}'></canvas>
+</div>
+
 <script src="{{ url_for('static', filename='fitness.js') }}"></script>
 {% endblock %}

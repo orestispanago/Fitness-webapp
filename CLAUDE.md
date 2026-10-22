@@ -16,7 +16,7 @@ Personal, single-user Flask + SQLite app that charts Garmin Connect data.
 - Build in vertical slices, one table at a time: fetch → insert → plot,
   working end to end before the next table. Progress is tracked under
   "Build order" in `SPEC.md`.
-- No premature abstraction: one function per table in `sync.py`, one JS
+- No premature abstraction: one function per table in `sync/<page>.py`, one JS
   file per page in `static/`, until real duplication shows up in 2–3
   places.
 - No inline JS/CSS and no Jinja inside `<script>`: chart data goes on the
