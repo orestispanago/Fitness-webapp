@@ -17,7 +17,11 @@ CREATE TABLE IF NOT EXISTS resting_hr (
 
 CREATE TABLE IF NOT EXISTS hrv (
     calendar_date TEXT NOT NULL PRIMARY KEY,
-    hrv_value INTEGER
+    hrv_value INTEGER,
+    hrv_status TEXT,
+    baseline_low_upper INTEGER,
+    baseline_balanced_low INTEGER,
+    baseline_balanced_upper INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS weight (

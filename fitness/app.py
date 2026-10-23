@@ -18,6 +18,7 @@ def fitness_page():
     hrv = queries.load_hrv()
     resting_hr_avg = queries.rolling_average(resting_hr)
     hrv_avg = queries.rolling_average(hrv)
+    hrv_baseline = queries.load_hrv_baseline()
     weight = queries.load_weight()
     weight_avg = queries.rolling_average(weight)
     sleep_shortfall = queries.load_sleep_shortfall()
@@ -30,6 +31,7 @@ def fitness_page():
         resting_hr_avg=resting_hr_avg,
         hrv=hrv,
         hrv_avg=hrv_avg,
+        hrv_baseline=hrv_baseline,
         weight=weight,
         weight_avg=weight_avg,
         sleep_shortfall=sleep_shortfall,

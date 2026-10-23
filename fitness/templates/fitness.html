@@ -19,7 +19,8 @@
 <h2>HRV (overnight average)</h2>
 <div class="chart">
   <canvas id="hrv-chart" data-points='{{ hrv | tojson }}'
-    data-average='{{ hrv_avg | tojson }}'></canvas>
+    data-average='{{ hrv_avg | tojson }}'
+    data-baseline='{{ hrv_baseline | tojson }}'></canvas>
 </div>
 
 <h2>Weight</h2>

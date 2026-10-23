@@ -108,14 +108,34 @@ def fetch_hrv(client, start, end):
     return summaries
 
 
+def hrv_row(day, summary):
+    """(date, value, status, low upper, balanced low, balanced upper)."""
+    # Status NONE (onboarding) is stored as null, as for training_load
+    row = (day, None, None, None, None, None)
+    if summary is not None:
+        baseline = summary.get("baseline") or {}
+        status = summary.get("status")
+        if status == "NONE":
+            status = None
+        row = (
+            day,
+            summary.get("lastNightAvg"),
+            status,
+            baseline.get("lowUpper"),
+            baseline.get("balancedLow"),
+            baseline.get("balancedUpper"),
+        )
+    return row
+
+
 def parse_hrv(summaries, start, end):
     """One row per day in range; days Garmin didn't return get None."""
-    values = {}
+    by_day = {}
     for summary in summaries:
-        values[summary["calendarDate"]] = summary.get("lastNightAvg")
+        by_day[summary["calendarDate"]] = summary
     rows = []
     for day in days_in_range(start, end):
-        rows.append((day, values.get(day)))
+        rows.append(hrv_row(day, by_day.get(day)))
     return rows
 
 
@@ -124,7 +144,14 @@ def sync_hrv(conn, client):
     end = date.today().isoformat()
     summaries = fetch_hrv(client, start, end)
     rows = parse_hrv(summaries, start, end)
-    store_daily(conn, "hrv", ["hrv_value"], rows)
+    columns = [
+        "hrv_value",
+        "hrv_status",
+        "baseline_low_upper",
+        "baseline_balanced_low",
+        "baseline_balanced_upper",
+    ]
+    store_daily(conn, "hrv", columns, rows)
     print(f"hrv: {len(rows)} rows stored ({start} to {end})")
 
 

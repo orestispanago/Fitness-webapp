@@ -65,6 +65,25 @@ def load_hrv():
     return load_daily_points("hrv", "hrv_value")
 
 
+def load_hrv_baseline():
+    """Per day: Garmin's HRV status and baseline limits (nulls kept)."""
+    rows = get_db().execute(
+        "SELECT calendar_date, hrv_status, baseline_low_upper,"
+        " baseline_balanced_low, baseline_balanced_upper"
+        " FROM hrv ORDER BY calendar_date"
+    ).fetchall()
+    days = []
+    for row in rows:
+        days.append({
+            "x": row["calendar_date"],
+            "status": row["hrv_status"],
+            "low_upper": row["baseline_low_upper"],
+            "balanced_low": row["baseline_balanced_low"],
+            "balanced_upper": row["baseline_balanced_upper"],
+        })
+    return days
+
+
 def load_weight():
     return load_daily_points("weight", "weight_kg")
 
