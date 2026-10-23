@@ -1,5 +1,30 @@
 // Chart helpers shared by every page; loaded from base.html.
 
+// Status colours (bands, highlighted points, bars, rings), one set for
+// every chart; series keep Chart.js's default colours (see SPEC.md)
+const STATUS_COLORS = {
+  green: "75, 192, 92",
+  yellow: "255, 205, 86",
+  orange: "255, 159, 64",
+  red: "255, 99, 71",
+  blue: "54, 162, 235",
+};
+
+function statusColor(name, alpha = 1) {
+  return `rgba(${STATUS_COLORS[name]}, ${alpha})`;
+}
+
+// Greys for non-data marks; grid and label greys are Chart.js's defaults
+const GREYS = {
+  grid: Chart.defaults.borderColor,
+  guide: "rgba(0, 0, 0, 0.25)",
+  strong: "rgba(0, 0, 0, 0.5)",
+  label: Chart.defaults.color,
+};
+
+// Chart.js's default 1st-series blue, for series given an explicit colour
+const SERIES_BLUE = "rgb(54, 162, 235)";
+
 // Shared axes for charts of daily values: real-date x-axis, titled y-axis.
 function dailyScales(yTitle) {
   return {
@@ -32,7 +57,7 @@ function bandsPlugin(bands) {
         }
         ctx.fillStyle = band.color;
         ctx.fillRect(area.left, top, area.right - area.left, bottom - top);
-        ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+        ctx.fillStyle = GREYS.label;
         ctx.font = "11px sans-serif";
         ctx.fillText(band.label, area.left + 4, top + 12);
       });
@@ -56,13 +81,13 @@ function markersPlugin(markers) {
         if (left < area.left || left > area.right) {
           return;
         }
-        ctx.strokeStyle = "rgba(0, 0, 0, 0.45)";
+        ctx.strokeStyle = GREYS.strong;
         ctx.setLineDash([4, 4]);
         ctx.beginPath();
         ctx.moveTo(left, area.top);
         ctx.lineTo(left, area.bottom);
         ctx.stroke();
-        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+        ctx.fillStyle = GREYS.label;
         ctx.font = "11px sans-serif";
         ctx.fillText(marker.label, left + 4, area.top + 12);
       });

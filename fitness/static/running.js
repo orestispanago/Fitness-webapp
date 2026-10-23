@@ -37,7 +37,8 @@ dailyLineChart("decoupling-chart", "Aerobic decoupling", "% efficiency lost");
 
 // Colour per run_type (see SPEC.md); types missing here show in grey
 const RUN_TYPE_COLORS = {
-  "Base-HR": "#2a78d6",
+  // Same blue as the base-HR pace and decoupling lines
+  "Base-HR": SERIES_BLUE,
   Threshold: "#eb6834",
   Base: "#1baf7a",
   Sprint: "#eda100",
@@ -102,7 +103,7 @@ const beatPath = {
   type: "line",
   label: "path",
   data: beatRuns,
-  borderColor: "rgba(0, 0, 0, 0.22)",
+  borderColor: GREYS.guide,
   borderWidth: 1,
   pointRadius: 0,
   pointHoverRadius: 0,

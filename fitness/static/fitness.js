@@ -1,17 +1,17 @@
 // Garmin's ACWR statuses; cut-offs observed in the data, not documented
 const ACWR_BANDS = [
-  { from: null, to: 0.8, label: "LOW", color: "rgba(54, 162, 235, 0.12)" },
-  { from: 0.8, to: 1.5, label: "OPTIMAL", color: "rgba(75, 192, 92, 0.15)" },
-  { from: 1.5, to: null, label: "HIGH", color: "rgba(255, 99, 71, 0.15)" },
+  { from: null, to: 0.8, label: "LOW", color: statusColor("blue", 0.12) },
+  { from: 0.8, to: 1.5, label: "OPTIMAL", color: statusColor("green", 0.15) },
+  { from: 1.5, to: null, label: "HIGH", color: statusColor("red", 0.15) },
 ];
 
 // Cooper Institute VO2max ratings, men aged 30–39, as used by Garmin
 const VO2MAX_BANDS = [
-  { from: null, to: 40.5, label: "POOR", color: "rgba(255, 99, 71, 0.12)" },
-  { from: 40.5, to: 44, label: "FAIR", color: "rgba(255, 159, 64, 0.12)" },
-  { from: 44, to: 48.3, label: "GOOD", color: "rgba(255, 205, 86, 0.15)" },
-  { from: 48.3, to: 54, label: "EXCELLENT", color: "rgba(75, 192, 92, 0.15)" },
-  { from: 54, to: null, label: "SUPERIOR", color: "rgba(54, 162, 235, 0.12)" },
+  { from: null, to: 40.5, label: "POOR", color: statusColor("red", 0.12) },
+  { from: 40.5, to: 44, label: "FAIR", color: statusColor("orange", 0.12) },
+  { from: 44, to: 48.3, label: "GOOD", color: statusColor("yellow", 0.15) },
+  { from: 48.3, to: 54, label: "EXCELLENT", color: statusColor("green", 0.15) },
+  { from: 54, to: null, label: "SUPERIOR", color: statusColor("blue", 0.12) },
 ];
 
 const vo2maxChart = dailyLineChart("vo2max-chart", "VO2max", "ml/kg/min", [
@@ -20,7 +20,7 @@ const vo2maxChart = dailyLineChart("vo2max-chart", "VO2max", "ml/kg/min", [
 highlightPoints(
   vo2maxChart,
   VO2MAX_BANDS.find((band) => band.label === "EXCELLENT"),
-  "rgb(75, 192, 92)",
+  statusColor("green"),
 );
 dailyAverageChart("resting-hr-chart", "Resting HR", "bpm");
 const hrvChart = dailyAverageChart("hrv-chart", "HRV", "ms");
@@ -38,7 +38,7 @@ acwrChart.options.scales.y.suggestedMax = 1.7;
 highlightPoints(
   acwrChart,
   ACWR_BANDS.find((band) => band.label === "HIGH"),
-  "rgb(255, 99, 71)",
+  statusColor("red"),
 );
 
 // 419 -> "6:59"
@@ -53,7 +53,7 @@ const sleepScales = dailyScales("min vs. need");
 // Darker grid line at 0 = exactly the sleep need
 sleepScales.y.grid = {
   color: (context) =>
-    context.tick.value === 0 ? "rgba(0, 0, 0, 0.5)" : "rgba(0, 0, 0, 0.1)",
+    context.tick.value === 0 ? GREYS.strong : GREYS.grid,
 };
 
 new Chart(sleepCanvas, {
@@ -65,16 +65,17 @@ new Chart(sleepCanvas, {
         data: JSON.parse(sleepCanvas.dataset.points),
         backgroundColor: (context) =>
           context.raw && context.raw.y < 0
-            ? "rgba(255, 99, 71, 0.7)"
-            : "rgba(75, 192, 92, 0.7)",
+            ? statusColor("red", 0.7)
+            : statusColor("green", 0.7),
         order: 1,
       },
       {
         type: "line",
         label: "7-day average",
         data: JSON.parse(sleepCanvas.dataset.average),
-        borderColor: "rgba(0, 0, 0, 0.7)",
-        backgroundColor: "rgba(0, 0, 0, 0.7)",
+        // Blue like the VO2max line; pink-red blends into the red bars
+        borderColor: SERIES_BLUE,
+        backgroundColor: SERIES_BLUE,
         pointRadius: 0,
         // Drawn on top of the bars
         order: 0,
@@ -102,7 +103,7 @@ new Chart(sleepCanvas, {
 });
 
 // Garmin's HRV baseline behind the dots: balanced range (green) and the
-// strip down to the LOW limit (amber), plus rings on the 7-day line where
+// strip down to the LOW limit (yellow), plus rings on the 7-day line where
 // Garmin's status isn't BALANCED (UNBALANCED orange, LOW red). Status
 // follows the 7-day average, not single nights (see SPEC.md)
 function addHrvBaseline(chart) {
@@ -111,7 +112,7 @@ function addHrvBaseline(chart) {
     label: label,
     data: days,
     parsing: { yAxisKey: key },
-    borderColor: "rgba(0, 0, 0, 0.25)",
+    borderColor: GREYS.guide,
     borderWidth: 1,
     pointRadius: 0,
     pointHoverRadius: 0,
@@ -125,10 +126,10 @@ function addHrvBaseline(chart) {
   lowLimit.borderDash = [4, 4];
   datasets.push(lowLimit);
   datasets.push(
-    band("Unbalanced (low)", "balanced_low", lowIndex, "rgba(237, 161, 0, 0.2)"),
+    band("Unbalanced (low)", "balanced_low", lowIndex, statusColor("yellow", 0.2)),
   );
   datasets.push(
-    band("Balanced range", "balanced_upper", lowIndex + 1, "rgba(27, 175, 122, 0.18)"),
+    band("Balanced range", "balanced_upper", lowIndex + 1, statusColor("green", 0.18)),
   );
   const average = JSON.parse(chart.canvas.dataset.average);
   const rings = [];
@@ -136,7 +137,7 @@ function addHrvBaseline(chart) {
   days.forEach((day, index) => {
     if (day.status === "UNBALANCED" || day.status === "LOW") {
       rings.push(average[index]);
-      ringColors.push(day.status === "LOW" ? "rgb(220, 53, 69)" : "rgb(235, 104, 52)");
+      ringColors.push(day.status === "LOW" ? statusColor("red") : statusColor("orange"));
     }
   });
   datasets.push({
@@ -148,7 +149,7 @@ function addHrvBaseline(chart) {
     pointBackgroundColor: "transparent",
     backgroundColor: "transparent",
     pointBorderColor: ringColors,
-    borderColor: "rgb(235, 104, 52)",
+    borderColor: statusColor("orange"),
     pointBorderWidth: 2,
     order: 0,
   });
