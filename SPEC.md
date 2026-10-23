@@ -44,8 +44,8 @@ charts, built incrementally, one vertical slice at a time.
   Romanian deadlift (60 → 100). Chosen over kg bars with % only in the
   tooltip, and over one %-gain bar per exercise (which can't show the
   pull-up and hides the weights).
-  Below it, per session group (S1, S2, S3, S4, built S1 first as a
-  slice): one small chart per exercise in that group, x = session date,
+  Below it, per session group (S1, S2, S3, S4; built S1 first as a
+  slice, then the rest): one small chart per exercise in that group, x = session date,
   a line for the average weight across that exercise's sets in the
   session and a shaded band from the lightest to the heaviest set (the
   band's top is the heaviest set). One chart per exercise, not one chart
@@ -407,7 +407,10 @@ All paths below are inside `fitness/`.
   after the exercise names were fixed in Garmin). Per-exercise trend
   charts (`queries.load_exercise_trends(session_label)`,
   `exerciseTrendChart` in `strength.js`, a `.chart-grid` of
-  `.chart-small` charts): S1 done; S2, S3, S4 next.
+  `.chart-small` charts): done for all groups. The groups come from the
+  data (`queries.load_session_labels`: distinct `session_label`, sorted,
+  so S1–S4 in order), like the exercises within them — a new workout
+  shows up as a new section by itself.
 
   The nav in
   `base.html` only links pages that exist; it grows as pages are added.

@@ -10,10 +10,13 @@
   <canvas id="progress-chart" data-points='{{ progress | tojson }}'></canvas>
 </div>
 
-<h2>S1 Squats: every exercise per session</h2>
+{% for group in groups %}
+<h2>{{ group.label }}: every exercise per session</h2>
+{% if loop.first %}
 <p class="note">Line: average set. Band: lightest to heaviest set.</p>
+{% endif %}
 <div class="chart-grid">
-  {% for exercise in s1_trends %}
+  {% for exercise in group.exercises %}
   <div>
     <h3>{{ exercise.label }}</h3>
     <div class="chart chart-small">
@@ -23,6 +26,7 @@
   </div>
   {% endfor %}
 </div>
+{% endfor %}
 
 <script src="{{ url_for('static', filename='strength.js') }}"></script>
 {% endblock %}

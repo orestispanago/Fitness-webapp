@@ -324,3 +324,15 @@ def load_exercise_trends(session_label):
             "points": trend_points(sessions),
         })
     return trends
+
+
+def load_session_labels():
+    """Session groups (e.g. 'S1 Squats'), sorted by label."""
+    rows = get_db().execute(
+        "SELECT DISTINCT session_label FROM strength_sessions"
+        " ORDER BY session_label"
+    ).fetchall()
+    labels = []
+    for row in rows:
+        labels.append(row["session_label"])
+    return labels

@@ -56,10 +56,8 @@ def running_page():
 @app.route("/strength")
 def strength_page():
     progress = queries.load_strength_progress()
-    # One session group for now, built as a slice (see SPEC.md)
-    s1_trends = queries.load_exercise_trends("S1 Squats")
-    return render_template(
-        "strength.html",
-        progress=progress,
-        s1_trends=s1_trends,
-    )
+    groups = []
+    for label in queries.load_session_labels():
+        exercises = queries.load_exercise_trends(label)
+        groups.append({"label": label, "exercises": exercises})
+    return render_template("strength.html", progress=progress, groups=groups)
