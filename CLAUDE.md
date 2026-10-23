@@ -23,6 +23,22 @@ Personal, single-user Flask + SQLite app that charts Garmin Connect data.
   `<canvas>` as `data-points='{{ ... | tojson }}'` (see `SPEC.md`).
 - No ORM, no migrations, no JS frameworks, no JSON API — see `SPEC.md`.
 - Ask when a request is ambiguous rather than guessing.
+- Design decisions: one at a time. Show the options with pros and cons
+  grounded in real data (actual API responses, observed quirks) and ask;
+  never assume, even when a default seems obvious. For each option, say
+  which has simpler code and which is more consistent with the existing
+  code. Ask in plain text, not with the multiple-choice question tool.
+- `SPEC.md` records decisions once they are made; don't write it ahead of
+  them.
+- Keep code comments minimal: don't repeat rationale `SPEC.md` already
+  holds; at most point to it.
+- The schema stores what the API gives, nulls included. Whether a missing
+  value shows as 0, a gap, or is excluded is decided in the chart code.
+- NOT NULL: decide by what a null would mean, not by "every value so far
+  was non-null". Use it when a null could only mean a bug (impossible at
+  the source, or a downstream query would silently go wrong). If a null is
+  a legitimate state (e.g. no added weight on a bodyweight exercise), make
+  the column nullable.
 
 ## Running
 
