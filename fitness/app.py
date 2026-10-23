@@ -16,16 +16,24 @@ def fitness_page():
     vo2max = queries.load_vo2max()
     resting_hr = queries.load_resting_hr()
     hrv = queries.load_hrv()
+    resting_hr_avg = queries.rolling_average(resting_hr)
+    hrv_avg = queries.rolling_average(hrv)
     weight = queries.load_weight()
+    weight_avg = queries.rolling_average(weight)
     sleep_shortfall = queries.load_sleep_shortfall()
+    sleep_shortfall_avg = queries.rolling_average(sleep_shortfall)
     acwr = queries.load_acwr()
     return render_template(
         "fitness.html",
         vo2max=vo2max,
         resting_hr=resting_hr,
+        resting_hr_avg=resting_hr_avg,
         hrv=hrv,
+        hrv_avg=hrv_avg,
         weight=weight,
+        weight_avg=weight_avg,
         sleep_shortfall=sleep_shortfall,
+        sleep_shortfall_avg=sleep_shortfall_avg,
         acwr=acwr,
     )
 
@@ -33,11 +41,11 @@ def fitness_page():
 @app.route("/running")
 def running_page():
     pace = queries.load_run_pace()
-    run_hr = queries.load_run_hr()
-    pace_fade = queries.load_pace_fade()
+    decoupling = queries.load_decoupling()
+    metres_per_beat = queries.load_metres_per_beat()
     return render_template(
         "running.html",
         pace=pace,
-        run_hr=run_hr,
-        pace_fade=pace_fade,
+        decoupling=decoupling,
+        metres_per_beat=metres_per_beat,
     )

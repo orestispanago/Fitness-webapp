@@ -1,19 +1,18 @@
 from datetime import date
 
-from fitness.config import FIRST_DATA_DATE
+from fitness.config import BASE_HR_RUN_TYPE, FIRST_DATA_DATE
 
-BASE_HR_MARKER = "Base-HR"
+# Garmin's automatic name for a run nobody renamed: "<Location> Running"
+GARMIN_NAME_SUFFIX = " Running"
 
 
-# base_hr_runs
+# runs
 
 
 def runs_start_date(conn):
     """Calendar day of the latest stored run, or FIRST_DATA_DATE if none."""
     # Same day, not +1: a second run that day may not have been synced yet
-    row = conn.execute(
-        "SELECT MAX(start_time_local) FROM base_hr_runs"
-    ).fetchone()
+    row = conn.execute("SELECT MAX(start_time_local) FROM runs").fetchone()
     start = FIRST_DATA_DATE
     if row[0] is not None:
         start = row[0][:10]
@@ -24,77 +23,85 @@ def fetch_runs(client, start, end):
     return client.get_activities_by_date(start, end, "running")
 
 
-def is_base_hr_run(activity):
+def is_run(activity):
     type_key = (activity.get("activityType") or {}).get("typeKey")
-    name = activity.get("activityName") or ""
     matches = False
-    if type_key == "running" and BASE_HR_MARKER in name:
+    if type_key == "running":
         matches = True
     return matches
 
 
-def run_location(name):
-    """'Jeddah - Base-HR' -> 'Jeddah'; None if the name has no ' - '."""
+def parse_run_name(name):
+    """(location, run_type): '<Location> - <Type>' or '<Location> Running'."""
     location = None
+    run_type = None
     if " - " in name:
-        location = name.split(" - ", 1)[0]
-    return location
+        location, run_type = name.split(" - ", 1)
+    elif name.endswith(GARMIN_NAME_SUFFIX):
+        location = name[: -len(GARMIN_NAME_SUFFIX)]
+    return location, run_type
 
 
-def parse_base_hr_runs(activities):
+def parse_runs(activities):
     rows = []
     for activity in activities:
-        if not is_base_hr_run(activity):
+        if not is_run(activity):
             continue
         name = activity["activityName"]
+        location, run_type = parse_run_name(name)
+        avg_hr = None
+        if activity.get("averageHR") is not None:
+            avg_hr = round(activity["averageHR"])
         rows.append(
             (
                 activity["activityId"],
                 activity["startTimeLocal"],
                 activity["distance"],
                 activity["duration"],
-                round(activity["averageHR"]),
-                run_location(name),
+                avg_hr,
+                location,
+                run_type,
                 name,
             )
         )
     return rows
 
 
-def store_new_base_hr_runs(conn, rows):
+def store_new_runs(conn, rows):
     """Insert runs not stored yet; returns how many were new."""
     cursor = conn.executemany(
         """
-        INSERT OR IGNORE INTO base_hr_runs
+        INSERT OR IGNORE INTO runs
             (activity_id, start_time_local, distance_m, duration_s,
-             avg_hr, location, activity_name)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+             avg_hr, location, run_type, activity_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         rows,
     )
     return cursor.rowcount
 
 
-def sync_base_hr_runs(conn, client):
+def sync_runs(conn, client):
     start = runs_start_date(conn)
     end = date.today().isoformat()
     activities = fetch_runs(client, start, end)
-    rows = parse_base_hr_runs(activities)
-    new_count = store_new_base_hr_runs(conn, rows)
-    print(
-        f"base_hr_runs: {len(rows)} found, {new_count} new ({start} to {end})"
-    )
+    rows = parse_runs(activities)
+    new_count = store_new_runs(conn, rows)
+    print(f"runs: {len(rows)} found, {new_count} new ({start} to {end})")
 
 
 # laps
 
 
 def runs_without_laps(conn):
-    """Stored runs whose laps haven't been fetched yet (normally new ones)."""
+    """Base-HR runs whose laps haven't been fetched yet (normally new ones)."""
+    # Only base-HR laps are km splits that the charts use (see SPEC.md)
     rows = conn.execute(
-        "SELECT activity_id FROM base_hr_runs"
-        " WHERE activity_id NOT IN (SELECT activity_id FROM laps)"
-        " ORDER BY start_time_local"
+        "SELECT activity_id FROM runs"
+        " WHERE run_type = ?"
+        " AND activity_id NOT IN (SELECT activity_id FROM laps)"
+        " ORDER BY start_time_local",
+        (BASE_HR_RUN_TYPE,),
     ).fetchall()
     activity_ids = []
     for row in rows:
@@ -145,5 +152,5 @@ def sync_laps(conn, client):
 
 
 def sync_all(conn, client):
-    sync_base_hr_runs(conn, client)
+    sync_runs(conn, client)
     sync_laps(conn, client)

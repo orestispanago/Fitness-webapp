@@ -71,6 +71,51 @@ function markersPlugin(markers) {
   };
 }
 
+// Daily values as dots (no line) plus their 7-day rolling average as a
+// line; read from the canvas's data-points and data-average attributes.
+function dailyAverageChart(canvasId, label, yTitle, plugins = []) {
+  const canvas = document.getElementById(canvasId);
+  return new Chart(canvas, {
+    type: "line",
+    data: {
+      datasets: [
+        {
+          label: label,
+          data: JSON.parse(canvas.dataset.points),
+          showLine: false,
+        },
+        {
+          label: "7-day average",
+          data: JSON.parse(canvas.dataset.average),
+          pointRadius: 0,
+        },
+      ],
+    },
+    options: {
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      scales: dailyScales(yTitle),
+    },
+    plugins: plugins,
+  });
+}
+
+// Draws the points whose value falls in band ({ from, to }; null =
+// open-ended) in color; the rest keep the dataset's own colour.
+function highlightPoints(chart, band, color) {
+  const inBand = (context) =>
+    context.raw &&
+    context.raw.y !== null &&
+    (band.from === null || context.raw.y >= band.from) &&
+    (band.to === null || context.raw.y < band.to);
+  const dataset = chart.data.datasets[0];
+  dataset.pointBackgroundColor = (context) =>
+    inBand(context) ? color : context.dataset.backgroundColor;
+  dataset.pointBorderColor = (context) =>
+    inBand(context) ? color : context.dataset.borderColor;
+  chart.update();
+}
+
 // Line chart of one daily series; points come from the canvas's
 // data-points attribute. Null values are drawn as gaps. Optional
 // plugins (e.g. bandsPlugin) are passed through to Chart.js.

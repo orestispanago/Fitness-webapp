@@ -3,21 +3,22 @@
 {% block title %}Running{% endblock %}
 
 {% block content %}
-<h1>Running (base-HR runs)</h1>
+<h1>Running</h1>
 
-<h2>Pace</h2>
+<h2>Pace (base-HR runs)</h2>
 <div class="chart">
   <canvas id="pace-chart" data-points='{{ pace | tojson }}'></canvas>
 </div>
 
-<h2>Average heart rate</h2>
+<h2>Aerobic decoupling (base-HR runs, km 2–3 vs. km 4–5)</h2>
 <div class="chart">
-  <canvas id="run-hr-chart" data-points='{{ run_hr | tojson }}'></canvas>
+  <canvas id="decoupling-chart" data-points='{{ decoupling | tojson }}'></canvas>
 </div>
 
-<h2>Pace fade (last km − first km)</h2>
+<h2>Metres per heartbeat (all runs)</h2>
 <div class="chart">
-  <canvas id="pace-fade-chart" data-points='{{ pace_fade | tojson }}'></canvas>
+  <canvas id="metres-per-beat-chart"
+    data-points='{{ metres_per_beat | tojson }}'></canvas>
 </div>
 
 <script src="{{ url_for('static', filename='running.js') }}"></script>

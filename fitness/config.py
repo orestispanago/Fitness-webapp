@@ -13,3 +13,6 @@ DB_PATH = os.path.join(PROJECT_ROOT, "fitness.db")
 SCHEMA_PATH = os.path.join(PACKAGE_DIR, "schema.sql")
 
 FIRST_DATA_DATE = "2026-06-28"
+
+# run_type of the HR-capped base runs charted on their own (see SPEC.md)
+BASE_HR_RUN_TYPE = "Base-HR"
