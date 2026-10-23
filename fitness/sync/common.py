@@ -11,7 +11,7 @@ def open_connection():
     return conn
 
 
-def activity_start_date(conn, table):
+def find_activity_start_date(conn, table):
     """Day of the latest start_time_local in table, or FIRST_DATA_DATE."""
     # Same day, not +1: a second activity that day may not have been synced
     # yet. Identifiers are internal constants, never user input.
@@ -34,7 +34,7 @@ def store_new(conn, table, columns, rows):
     return cursor.rowcount
 
 
-def date_windows(start, end, max_days):
+def split_date_windows(start, end, max_days):
     """Split the inclusive ISO date range into windows of at most max_days."""
     windows = []
     window_start = date.fromisoformat(start)
@@ -48,7 +48,7 @@ def date_windows(start, end, max_days):
     return windows
 
 
-def days_in_range(start, end):
+def list_days_in_range(start, end):
     days = []
     day = date.fromisoformat(start)
     last = date.fromisoformat(end)

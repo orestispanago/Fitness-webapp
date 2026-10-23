@@ -10,7 +10,7 @@ const STATUS_COLORS = {
   blue: "54, 162, 235",
 };
 
-function statusColor(name, alpha = 1) {
+function getStatusColor(name, alpha = 1) {
   return `rgba(${STATUS_COLORS[name]}, ${alpha})`;
 }
 
@@ -23,48 +23,88 @@ const GREYS = {
 };
 
 // Chart.js's default 1st-series blue, for series given an explicit colour
-function seriesBlue(alpha = 1) {
+function getSeriesBlue(alpha = 1) {
   return `rgba(54, 162, 235, ${alpha})`;
 }
 
-const SERIES_BLUE = seriesBlue();
+const SERIES_BLUE = getSeriesBlue();
 
 // Shared axes for charts of daily values: real-date x-axis, titled y-axis.
-function dailyScales(yTitle) {
+function buildDailyScales(yTitle) {
   return {
     x: { type: "time", time: { unit: "month", tooltipFormat: "MMM d, yyyy" } },
     y: { title: { display: true, text: yTitle } },
   };
 }
 
+// The first band whose label matches, e.g. "HIGH" in ACWR_BANDS
+function findBand(bands, label) {
+  let found = null;
+  for (const band of bands) {
+    if (found === null && band.label === label) {
+      found = band;
+    }
+  }
+  return found;
+}
+
+// Whether value falls in band ({ from, to }; null = open-ended)
+function isInBand(value, band) {
+  let inside = false;
+  if (value !== null && value !== undefined) {
+    inside = true;
+    if (band.from !== null && value < band.from) {
+      inside = false;
+    }
+    if (band.to !== null && value >= band.to) {
+      inside = false;
+    }
+  }
+  return inside;
+}
+
+// Pixel rows a band covers inside the chart area, or null if none
+function getBandPixels(band, area, y) {
+  let top = area.top;
+  if (band.to !== null) {
+    top = Math.max(y.getPixelForValue(band.to), area.top);
+  }
+  let bottom = area.bottom;
+  if (band.from !== null) {
+    bottom = Math.min(y.getPixelForValue(band.from), area.bottom);
+  }
+  let pixels = null;
+  if (bottom > top) {
+    pixels = { top: top, bottom: bottom };
+  }
+  return pixels;
+}
+
 // Chart.js plugin that shades horizontal y-ranges behind the data and
 // labels them. Each band: { from, to, label, color }; null = open-ended.
-function bandsPlugin(bands) {
+function createBandsPlugin(bands) {
   return {
     id: "bands",
     beforeDatasetsDraw(chart) {
       const area = chart.chartArea;
-      const y = chart.scales.y;
       const ctx = chart.ctx;
       ctx.save();
-      bands.forEach((band) => {
-        let top = area.top;
-        if (band.to !== null) {
-          top = Math.max(y.getPixelForValue(band.to), area.top);
-        }
-        let bottom = area.bottom;
-        if (band.from !== null) {
-          bottom = Math.min(y.getPixelForValue(band.from), area.bottom);
-        }
-        if (bottom <= top) {
-          return;
+      for (const band of bands) {
+        const pixels = getBandPixels(band, area, chart.scales.y);
+        if (pixels === null) {
+          continue;
         }
         ctx.fillStyle = band.color;
-        ctx.fillRect(area.left, top, area.right - area.left, bottom - top);
+        ctx.fillRect(
+          area.left,
+          pixels.top,
+          area.right - area.left,
+          pixels.bottom - pixels.top,
+        );
         ctx.fillStyle = GREYS.label;
         ctx.font = "11px sans-serif";
-        ctx.fillText(band.label, area.left + 4, top + 12);
-      });
+        ctx.fillText(band.label, area.left + 4, pixels.top + 12);
+      }
       ctx.restore();
     },
   };
@@ -72,7 +112,7 @@ function bandsPlugin(bands) {
 
 // Chart.js plugin that draws labelled vertical lines behind the data,
 // marking dates. Each marker: { date: "YYYY-MM-DD", label }.
-function markersPlugin(markers) {
+function createMarkersPlugin(markers) {
   return {
     id: "markers",
     beforeDatasetsDraw(chart) {
@@ -80,10 +120,10 @@ function markersPlugin(markers) {
       const x = chart.scales.x;
       const ctx = chart.ctx;
       ctx.save();
-      markers.forEach((marker) => {
+      for (const marker of markers) {
         const left = x.getPixelForValue(x.parse(marker.date));
         if (left < area.left || left > area.right) {
-          return;
+          continue;
         }
         ctx.strokeStyle = GREYS.strong;
         ctx.setLineDash([4, 4]);
@@ -94,7 +134,7 @@ function markersPlugin(markers) {
         ctx.fillStyle = GREYS.label;
         ctx.font = "11px sans-serif";
         ctx.fillText(marker.label, left + 4, area.top + 12);
-      });
+      }
       ctx.restore();
     },
   };
@@ -102,7 +142,7 @@ function markersPlugin(markers) {
 
 // Daily values as dots (no line) plus their 7-day rolling average as a
 // line; read from the canvas's data-points and data-average attributes.
-function dailyAverageChart(canvasId, label, yTitle, plugins = []) {
+function plotDailyAverageChart(canvasId, label, yTitle, plugins = []) {
   const canvas = document.getElementById(canvasId);
   return new Chart(canvas, {
     type: "line",
@@ -123,32 +163,36 @@ function dailyAverageChart(canvasId, label, yTitle, plugins = []) {
     options: {
       maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
-      scales: dailyScales(yTitle),
+      scales: buildDailyScales(yTitle),
     },
     plugins: plugins,
   });
 }
 
-// Draws the points whose value falls in band ({ from, to }; null =
-// open-ended) in color; the rest keep the dataset's own colour.
+// highlight for a point whose value falls in band, otherwise normal
+function pickPointColor(context, band, highlight, normal) {
+  let pointColor = normal;
+  if (context.raw && isInBand(context.raw.y, band)) {
+    pointColor = highlight;
+  }
+  return pointColor;
+}
+
+// Draws the points whose value falls in band in color; the rest keep the
+// dataset's own colour.
 function highlightPoints(chart, band, color) {
-  const inBand = (context) =>
-    context.raw &&
-    context.raw.y !== null &&
-    (band.from === null || context.raw.y >= band.from) &&
-    (band.to === null || context.raw.y < band.to);
   const dataset = chart.data.datasets[0];
   dataset.pointBackgroundColor = (context) =>
-    inBand(context) ? color : context.dataset.backgroundColor;
+    pickPointColor(context, band, color, context.dataset.backgroundColor);
   dataset.pointBorderColor = (context) =>
-    inBand(context) ? color : context.dataset.borderColor;
+    pickPointColor(context, band, color, context.dataset.borderColor);
   chart.update();
 }
 
 // Line chart of one daily series; points come from the canvas's
 // data-points attribute. Null values are drawn as gaps. Optional
-// plugins (e.g. bandsPlugin) are passed through to Chart.js.
-function dailyLineChart(canvasId, label, yTitle, plugins = []) {
+// plugins (e.g. createBandsPlugin) are passed through to Chart.js.
+function plotDailyLineChart(canvasId, label, yTitle, plugins = []) {
   const canvas = document.getElementById(canvasId);
   return new Chart(canvas, {
     type: "line",
@@ -162,7 +206,7 @@ function dailyLineChart(canvasId, label, yTitle, plugins = []) {
       maintainAspectRatio: false,
       // Tooltip for the hovered date anywhere on the chart, not only on a point
       interaction: { mode: "index", intersect: false },
-      scales: dailyScales(yTitle),
+      scales: buildDailyScales(yTitle),
       plugins: { legend: { display: false } },
     },
     plugins: plugins,

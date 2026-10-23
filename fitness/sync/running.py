@@ -1,7 +1,7 @@
 from datetime import date
 
 from fitness.config import BASE_HR_RUN_TYPE
-from fitness.sync.common import activity_start_date, store_new
+from fitness.sync.common import find_activity_start_date, store_new
 
 # Garmin's automatic name for a run nobody renamed: "<Location> Running"
 GARMIN_NAME_SUFFIX = " Running"
@@ -59,7 +59,7 @@ def parse_runs(activities):
 
 
 def sync_runs(conn, client):
-    start = activity_start_date(conn, "runs")
+    start = find_activity_start_date(conn, "runs")
     end = date.today().isoformat()
     activities = fetch_runs(client, start, end)
     rows = parse_runs(activities)
@@ -80,7 +80,7 @@ def sync_runs(conn, client):
 # laps
 
 
-def runs_without_laps(conn):
+def find_runs_without_laps(conn):
     """Base-HR runs whose laps haven't been fetched yet (normally new ones)."""
     # Only base-HR laps are km splits that the charts use (see SPEC.md)
     rows = conn.execute(
@@ -116,7 +116,7 @@ def parse_laps(activity_id, splits):
 
 def sync_laps(conn, client):
     # Laps don't change after a run, so each run's laps are fetched once
-    activity_ids = runs_without_laps(conn)
+    activity_ids = find_runs_without_laps(conn)
     columns = [
         "activity_id",
         "lap_index",

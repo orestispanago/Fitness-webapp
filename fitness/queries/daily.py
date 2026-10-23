@@ -20,11 +20,11 @@ def load_daily_points(table, value_column):
     return points
 
 
-def window_mean(values_by_day, day, days):
-    """Mean of the non-null values in the `days` days ending on `day`."""
+def compute_window_mean(values_by_day, day, window_days):
+    """Mean of the non-null values in the window_days ending on day."""
     total = 0
     count = 0
-    for offset in range(days):
+    for offset in range(window_days):
         value = values_by_day.get(day - timedelta(days=offset))
         if value is not None:
             total += value
@@ -35,15 +35,15 @@ def window_mean(values_by_day, day, days):
     return mean
 
 
-def rolling_average(points, days=ROLLING_DAYS):
-    """Trailing `days`-day mean at each point's date, same {x, y} shape."""
+def compute_rolling_average(points, window_days=ROLLING_DAYS):
+    """Trailing window_days mean at each point's date, same {x, y} shape."""
     values_by_day = {}
     for point in points:
         values_by_day[date.fromisoformat(point["x"])] = point["y"]
     averages = []
     for point in points:
         day = date.fromisoformat(point["x"])
-        mean = window_mean(values_by_day, day, days)
+        mean = compute_window_mean(values_by_day, day, window_days)
         averages.append({"x": point["x"], "y": mean})
     return averages
 

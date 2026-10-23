@@ -1,6 +1,6 @@
 from datetime import date
 
-from fitness.sync.common import activity_start_date, store_new
+from fitness.sync.common import find_activity_start_date, store_new
 
 
 # strength_sessions
@@ -38,7 +38,7 @@ def parse_sessions(activities):
 
 
 def sync_sessions(conn, client):
-    start = activity_start_date(conn, "strength_sessions")
+    start = find_activity_start_date(conn, "strength_sessions")
     end = date.today().isoformat()
     activities = fetch_activities(client, start, end)
     rows = parse_sessions(activities)
@@ -58,7 +58,7 @@ def sync_sessions(conn, client):
 # strength_sets
 
 
-def sessions_without_sets(conn):
+def find_sessions_without_sets(conn):
     """Sessions whose sets haven't been fetched yet (normally new ones)."""
     rows = conn.execute(
         "SELECT activity_id FROM strength_sessions"
@@ -71,7 +71,7 @@ def sessions_without_sets(conn):
     return activity_ids
 
 
-def set_row(activity_id, set_index, exercise_set):
+def build_set_row(activity_id, set_index, exercise_set):
     exercise = exercise_set["exercises"][0]
     # Grams -> kg; None when Garmin sent no weight (bodyweight sets)
     weight_kg = None
@@ -93,13 +93,13 @@ def parse_sets(activity_id, response):
     for exercise_set in response.get("exerciseSets") or []:
         if exercise_set.get("setType") != "ACTIVE":
             continue
-        rows.append(set_row(activity_id, len(rows), exercise_set))
+        rows.append(build_set_row(activity_id, len(rows), exercise_set))
     return rows
 
 
 def sync_sets(conn, client):
     # Sets don't change after a session, so each session's are fetched once
-    activity_ids = sessions_without_sets(conn)
+    activity_ids = find_sessions_without_sets(conn)
     columns = [
         "activity_id",
         "set_index",

@@ -1,5 +1,6 @@
 from fitness.config import BASE_HR_RUN_TYPE
 from fitness.db import get_db
+from fitness.queries.common import get_date_part
 
 # Shortest lap that counts as a full km (auto-laps are 1000 m; the final
 # lap of a run is usually only a few metres)
@@ -16,7 +17,7 @@ def load_run_pace():
     points = []
     for row in rows:
         pace = round(row["duration_s"] / (row["distance_m"] / 1000))
-        points.append({"x": row["start_time_local"][:10], "y": pace})
+        points.append({"x": get_date_part(row["start_time_local"]), "y": pace})
     return points
 
 
@@ -33,7 +34,7 @@ def load_full_km_laps():
     return laps_by_run
 
 
-def efficiency(laps):
+def compute_efficiency(laps):
     """Speed (m/s) per beat of time-weighted average HR."""
     distance = 0
     duration = 0
@@ -45,15 +46,15 @@ def efficiency(laps):
     return (distance / duration) / (heartbeats / duration)
 
 
-def decoupling(laps):
+def compute_decoupling(laps):
     """Efficiency drop (%) from first to second half, warm-up km skipped."""
     # Odd lap counts drop the middle lap so both halves are whole laps
     measured = laps[1:]
     half = len(measured) // 2
     result = None
     if half > 0:
-        first = efficiency(measured[:half])
-        second = efficiency(measured[len(measured) - half:])
+        first = compute_efficiency(measured[:half])
+        second = compute_efficiency(measured[len(measured) - half:])
         result = round((first - second) / first * 100, 1)
     return result
 
@@ -69,8 +70,9 @@ def load_decoupling():
     points = []
     for run in runs:
         laps = laps_by_run.get(run["activity_id"], [])
-        value = decoupling(laps)
-        points.append({"x": run["start_time_local"][:10], "y": value})
+        value = compute_decoupling(laps)
+        day = get_date_part(run["start_time_local"])
+        points.append({"x": day, "y": value})
     return points
 
 
@@ -86,7 +88,7 @@ def load_metres_per_beat():
     for row in rows:
         metres_per_minute = row["distance_m"] / (row["duration_s"] / 60)
         points.append({
-            "x": row["start_time_local"][:10],
+            "x": get_date_part(row["start_time_local"]),
             "y": round(metres_per_minute / row["avg_hr"], 3),
             "name": row["activity_name"],
             "location": row["location"],

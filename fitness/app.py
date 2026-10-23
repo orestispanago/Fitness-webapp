@@ -17,13 +17,13 @@ def fitness_page():
     vo2max = daily.load_vo2max()
     resting_hr = daily.load_resting_hr()
     hrv = daily.load_hrv()
-    resting_hr_avg = daily.rolling_average(resting_hr)
-    hrv_avg = daily.rolling_average(hrv)
+    resting_hr_avg = daily.compute_rolling_average(resting_hr)
+    hrv_avg = daily.compute_rolling_average(hrv)
     hrv_baseline = daily.load_hrv_baseline()
     weight = daily.load_weight()
-    weight_avg = daily.rolling_average(weight)
+    weight_avg = daily.compute_rolling_average(weight)
     sleep_shortfall = daily.load_sleep_shortfall()
-    sleep_shortfall_avg = daily.rolling_average(sleep_shortfall)
+    sleep_shortfall_avg = daily.compute_rolling_average(sleep_shortfall)
     acwr = daily.load_acwr()
     return render_template(
         "fitness.html",

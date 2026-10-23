@@ -1,4 +1,5 @@
 from fitness.db import get_db
+from fitness.queries.common import get_date_part
 
 # Exercises on the strength bar chart, in chart order: label and Garmin
 # exercise name (names are kept consistent in Garmin itself, see SPEC.md)
@@ -18,9 +19,10 @@ STRENGTH_EXERCISES = [
 ]
 
 
-def set_kg(weight_kg):
-    # No weight = bodyweight = 0 kg added; + 0.0 turns Garmin's -0.0 into 0.0
-    return (weight_kg or 0) + 0.0
+def normalize_added_kg(weight_kg):
+    # No weight or Garmin's -0.0 (bodyweight) = 0 kg added; Garmin has no
+    # negative (assisted) weights, so abs only affects -0.0
+    return abs(weight_kg or 0.0)
 
 
 def load_strength_sets():
@@ -33,38 +35,40 @@ def load_strength_sets():
     ).fetchall()
 
 
-def session_weights(rows):
-    """{name: {activity_id: (date, [kg, ...])}}, in first-appearance order."""
+def group_set_weights(rows):
+    """{name: {activity_id: {date, kgs}}}, in first-appearance order."""
     weights = {}
     for row in rows:
         sessions = weights.setdefault(row["name"], {})
-        day = row["start_time_local"][:10]
-        session = sessions.setdefault(row["activity_id"], (day, []))
-        session[1].append(set_kg(row["weight_kg"]))
+        day = get_date_part(row["start_time_local"])
+        session = sessions.setdefault(
+            row["activity_id"], {"date": day, "kgs": []}
+        )
+        session["kgs"].append(normalize_added_kg(row["weight_kg"]))
     return weights
 
 
 def load_strength_progress():
     """Per listed exercise: heaviest set in its first and latest session."""
-    weights = session_weights(load_strength_sets())
+    weights = group_set_weights(load_strength_sets())
     progress = []
     for exercise in STRENGTH_EXERCISES:
         sessions = list(weights.get(exercise["name"], {}).values())
         if len(sessions) == 0:
             continue
-        first_day, first_kgs = sessions[0]
-        latest_day, latest_kgs = sessions[-1]
+        first = sessions[0]
+        latest = sessions[-1]
         progress.append({
             "label": exercise["label"],
-            "first": max(first_kgs),
-            "first_date": first_day,
-            "latest": max(latest_kgs),
-            "latest_date": latest_day,
+            "first": max(first["kgs"]),
+            "first_date": first["date"],
+            "latest": max(latest["kgs"]),
+            "latest_date": latest["date"],
         })
     return progress
 
 
-def exercise_display_name(name):
+def format_exercise_name(name):
     """'EZ_BAR_PREACHER_CURL' -> 'Ez bar preacher curl'."""
     label = "Unnamed exercise"
     if name is not None:
@@ -72,27 +76,28 @@ def exercise_display_name(name):
     return label
 
 
-def trend_points(sessions):
+def build_trend_points(sessions):
     """Per session: date, lightest, average and heaviest set, set count."""
     points = []
-    for day, kgs in sessions.values():
+    for session in sessions.values():
+        kgs = session["kgs"]
         points.append({
-            "x": day,
+            "x": session["date"],
             "min": min(kgs),
             "avg": round(sum(kgs) / len(kgs), 1),
             "max": max(kgs),
-            "n": len(kgs),
+            "sets": len(kgs),
         })
     return points
 
 
-def exercise_trends(rows):
+def build_exercise_trends(rows):
     """Every exercise in these sets, in first-appearance order, with points."""
     trends = []
-    for name, sessions in session_weights(rows).items():
+    for name, sessions in group_set_weights(rows).items():
         trends.append({
-            "label": exercise_display_name(name),
-            "points": trend_points(sessions),
+            "label": format_exercise_name(name),
+            "points": build_trend_points(sessions),
         })
     return trends
 
@@ -104,6 +109,6 @@ def load_exercise_trends():
         rows_by_group.setdefault(row["session_label"], []).append(row)
     groups = []
     for label in sorted(rows_by_group):
-        exercises = exercise_trends(rows_by_group[label])
+        exercises = build_exercise_trends(rows_by_group[label])
         groups.append({"label": label, "exercises": exercises})
     return groups

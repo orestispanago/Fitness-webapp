@@ -1,7 +1,7 @@
 from datetime import date
 
 from fitness.config import FIRST_DATA_DATE
-from fitness.sync.common import date_windows, days_in_range
+from fitness.sync.common import split_date_windows, list_days_in_range
 
 # get_rhr_daily is documented as covering "up to ~1 year" per request
 RESTING_HR_MAX_DAYS = 365
@@ -9,7 +9,7 @@ RESTING_HR_MAX_DAYS = 365
 HRV_MAX_DAYS = 365
 
 
-def daily_start_date(conn, table, value_column):
+def find_daily_start_date(conn, table, value_column):
     """Latest day with a non-null value, or FIRST_DATA_DATE if none."""
     # Not MAX(calendar_date): trailing null rows (e.g. watch not synced
     # yet) must be re-fetched on the next sync. Identifiers are internal
@@ -56,7 +56,7 @@ def parse_vo2max(entries):
 
 
 def sync_vo2max(conn, client):
-    start = daily_start_date(conn, "vo2max", "vo2max_precise_value")
+    start = find_daily_start_date(conn, "vo2max", "vo2max_precise_value")
     end = date.today().isoformat()
     entries = client.get_max_metrics_range(start, end)
     rows = parse_vo2max(entries)
@@ -69,9 +69,8 @@ def sync_vo2max(conn, client):
 
 def fetch_resting_hr(client, start, end):
     entries = []
-    for window_start, window_end in date_windows(
-        start, end, RESTING_HR_MAX_DAYS
-    ):
+    windows = split_date_windows(start, end, RESTING_HR_MAX_DAYS)
+    for window_start, window_end in windows:
         entries.extend(client.get_rhr_daily(window_start, window_end))
     return entries
 
@@ -87,7 +86,7 @@ def parse_resting_hr(entries):
 
 
 def sync_resting_hr(conn, client):
-    start = daily_start_date(conn, "resting_hr", "resting_hr_bpm")
+    start = find_daily_start_date(conn, "resting_hr", "resting_hr_bpm")
     end = date.today().isoformat()
     entries = fetch_resting_hr(client, start, end)
     rows = parse_resting_hr(entries)
@@ -100,7 +99,8 @@ def sync_resting_hr(conn, client):
 
 def fetch_hrv(client, start, end):
     summaries = []
-    for window_start, window_end in date_windows(start, end, HRV_MAX_DAYS):
+    windows = split_date_windows(start, end, HRV_MAX_DAYS)
+    for window_start, window_end in windows:
         response = client.get_hrv_data_range(window_start, window_end)
         if response is None:
             continue
@@ -108,7 +108,7 @@ def fetch_hrv(client, start, end):
     return summaries
 
 
-def hrv_row(day, summary):
+def build_hrv_row(day, summary):
     """(date, value, status, low upper, balanced low, balanced upper)."""
     # Status NONE (onboarding) is stored as null, as for training_load
     row = (day, None, None, None, None, None)
@@ -134,13 +134,13 @@ def parse_hrv(summaries, start, end):
     for summary in summaries:
         by_day[summary["calendarDate"]] = summary
     rows = []
-    for day in days_in_range(start, end):
-        rows.append(hrv_row(day, by_day.get(day)))
+    for day in list_days_in_range(start, end):
+        rows.append(build_hrv_row(day, by_day.get(day)))
     return rows
 
 
 def sync_hrv(conn, client):
-    start = daily_start_date(conn, "hrv", "hrv_value")
+    start = find_daily_start_date(conn, "hrv", "hrv_value")
     end = date.today().isoformat()
     summaries = fetch_hrv(client, start, end)
     rows = parse_hrv(summaries, start, end)
@@ -175,17 +175,17 @@ def parse_weight(entries):
         day = entry["calendarDate"]
         timestamp = entry.get("timestampGMT") or 0
         current = latest.get(day)
-        if current is not None and current[0] >= timestamp:
+        if current is not None and current["timestamp"] >= timestamp:
             continue
-        latest[day] = (timestamp, round(grams / 1000, 2))
+        latest[day] = {"timestamp": timestamp, "kg": round(grams / 1000, 2)}
     rows = []
     for day in sorted(latest):
-        rows.append((day, latest[day][1]))
+        rows.append((day, latest[day]["kg"]))
     return rows
 
 
 def sync_weight(conn, client):
-    start = daily_start_date(conn, "weight", "weight_kg")
+    start = find_daily_start_date(conn, "weight", "weight_kg")
     end = date.today().isoformat()
     entries = fetch_weight(client, start, end)
     rows = parse_weight(entries)
@@ -213,7 +213,7 @@ def parse_sleep(entries):
 
 
 def sync_sleep(conn, client):
-    start = daily_start_date(conn, "sleep", "sleep_duration_minutes")
+    start = find_daily_start_date(conn, "sleep", "sleep_duration_minutes")
     end = date.today().isoformat()
     # get_sleep_daily splits the range into 28-day requests itself
     entries = client.get_sleep_daily(start, end)
@@ -239,7 +239,7 @@ def fetch_training_load(client, start, end):
     return entries
 
 
-def training_load_row(entry):
+def build_training_load_row(entry):
     """(date, status, acute, chronic, ratio); all None while onboarding."""
     load = entry.get("acuteTrainingLoadDTO") or {}
     status = load.get("acwrStatus")
@@ -260,12 +260,12 @@ def parse_training_load(entries):
     for entry in entries:
         if entry.get("primaryTrainingDevice") is False:
             continue
-        rows.append(training_load_row(entry))
+        rows.append(build_training_load_row(entry))
     return rows
 
 
 def sync_training_load(conn, client):
-    start = daily_start_date(conn, "training_load", "acwr_status")
+    start = find_daily_start_date(conn, "training_load", "acwr_status")
     end = date.today().isoformat()
     entries = fetch_training_load(client, start, end)
     rows = parse_training_load(entries)
