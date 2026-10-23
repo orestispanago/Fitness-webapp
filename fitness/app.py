@@ -1,6 +1,7 @@
 from flask import Flask, redirect, render_template, url_for
 
-from fitness import db, queries
+from fitness import db
+from fitness.queries import daily, running, strength
 
 app = Flask(__name__)
 db.init_app(app)
@@ -13,17 +14,17 @@ def index():
 
 @app.route("/fitness")
 def fitness_page():
-    vo2max = queries.load_vo2max()
-    resting_hr = queries.load_resting_hr()
-    hrv = queries.load_hrv()
-    resting_hr_avg = queries.rolling_average(resting_hr)
-    hrv_avg = queries.rolling_average(hrv)
-    hrv_baseline = queries.load_hrv_baseline()
-    weight = queries.load_weight()
-    weight_avg = queries.rolling_average(weight)
-    sleep_shortfall = queries.load_sleep_shortfall()
-    sleep_shortfall_avg = queries.rolling_average(sleep_shortfall)
-    acwr = queries.load_acwr()
+    vo2max = daily.load_vo2max()
+    resting_hr = daily.load_resting_hr()
+    hrv = daily.load_hrv()
+    resting_hr_avg = daily.rolling_average(resting_hr)
+    hrv_avg = daily.rolling_average(hrv)
+    hrv_baseline = daily.load_hrv_baseline()
+    weight = daily.load_weight()
+    weight_avg = daily.rolling_average(weight)
+    sleep_shortfall = daily.load_sleep_shortfall()
+    sleep_shortfall_avg = daily.rolling_average(sleep_shortfall)
+    acwr = daily.load_acwr()
     return render_template(
         "fitness.html",
         vo2max=vo2max,
@@ -42,9 +43,9 @@ def fitness_page():
 
 @app.route("/running")
 def running_page():
-    pace = queries.load_run_pace()
-    decoupling = queries.load_decoupling()
-    metres_per_beat = queries.load_metres_per_beat()
+    pace = running.load_run_pace()
+    decoupling = running.load_decoupling()
+    metres_per_beat = running.load_metres_per_beat()
     return render_template(
         "running.html",
         pace=pace,
@@ -55,9 +56,6 @@ def running_page():
 
 @app.route("/strength")
 def strength_page():
-    progress = queries.load_strength_progress()
-    groups = []
-    for label in queries.load_session_labels():
-        exercises = queries.load_exercise_trends(label)
-        groups.append({"label": label, "exercises": exercises})
+    progress = strength.load_strength_progress()
+    groups = strength.load_exercise_trends()
     return render_template("strength.html", progress=progress, groups=groups)
