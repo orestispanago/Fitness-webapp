@@ -6,55 +6,21 @@ from fitness.db import get_db
 # Trailing window, in calendar days, for the rolling-average lines
 ROLLING_DAYS = 7
 
-# Exercises on the strength chart, in chart order: label, the Garmin
-# exercise names that count, and the category that counts when Garmin sent
-# no name (see SPEC.md)
+# Exercises on the strength bar chart, in chart order: label and Garmin
+# exercise name (names are kept consistent in Garmin itself, see SPEC.md)
 STRENGTH_EXERCISES = [
-    {
-        "label": "Squat (S1)",
-        "names": ["BARBELL_BACK_SQUAT"],
-        "category": None,
-    },
-    {
-        "label": "Bench press (S2)",
-        "names": ["BARBELL_BENCH_PRESS"],
-        "category": None,
-    },
-    {
-        "label": "Pull-up (S3)",
-        "names": ["WEIGHTED_PULL_UP"],
-        "category": "PULL_UP",
-    },
-    {
-        "label": "Lateral raise (S4)",
-        "names": ["DUMBBELL_LATERAL_RAISE"],
-        "category": None,
-    },
-    {
-        "label": "Romanian deadlift (S2)",
-        "names": ["ROMANIAN_DEADLIFT"],
-        "category": None,
-    },
-    {
-        "label": "Seated cable row (S4)",
-        "names": ["SEATED_CABLE_ROW"],
-        "category": None,
-    },
+    {"label": "Squat (S1)", "name": "BARBELL_BACK_SQUAT"},
+    {"label": "Bench press (S2)", "name": "BARBELL_BENCH_PRESS"},
+    {"label": "Pull-up (S3)", "name": "WEIGHTED_PULL_UP"},
+    {"label": "Lateral raise (S4)", "name": "DUMBBELL_LATERAL_RAISE"},
+    {"label": "Romanian deadlift (S2)", "name": "ROMANIAN_DEADLIFT"},
+    {"label": "Seated cable row (S4)", "name": "SEATED_CABLE_ROW"},
     {
         "label": "Wide-grip cable row (S1)",
-        "names": ["WIDE_GRIP_SEATED_CABLE_ROW"],
-        "category": None,
+        "name": "WIDE_GRIP_SEATED_CABLE_ROW",
     },
-    {
-        "label": "Leg curl (S3)",
-        "names": ["WEIGHTED_LEG_CURL"],
-        "category": None,
-    },
-    {
-        "label": "Leg extension (S3)",
-        "names": ["WEIGHTED_LEG_EXTENSIONS"],
-        "category": None,
-    },
+    {"label": "Leg curl (S3)", "name": "WEIGHTED_LEG_CURL"},
+    {"label": "Leg extension (S3)", "name": "WEIGHTED_LEG_EXTENSIONS"},
 ]
 
 # Shortest lap that counts as a full km (auto-laps are 1000 m; the final
@@ -255,27 +221,28 @@ def load_sleep_shortfall():
     return points
 
 
-def exercise_label(category, name):
-    """Chart label of the listed exercise a set belongs to, or None."""
+def exercise_label(name):
+    """Bar chart label of the listed exercise with this name, or None."""
     label = None
     for exercise in STRENGTH_EXERCISES:
-        if name in exercise["names"]:
-            label = exercise["label"]
-        elif name is None and category == exercise["category"]:
+        if name == exercise["name"]:
             label = exercise["label"]
     return label
+
+
+def set_kg(weight_kg):
+    # No weight = bodyweight = 0 kg added; + 0.0 turns Garmin's -0.0 into 0.0
+    return (weight_kg or 0) + 0.0
 
 
 def heaviest_sets(rows):
     """{label: {activity_id: (date, heaviest kg)}}, sessions in date order."""
     heaviest = {}
     for row in rows:
-        label = exercise_label(row["category"], row["name"])
+        label = exercise_label(row["name"])
         if label is None:
             continue
-        # No weight = bodyweight = 0 kg added; + 0.0 turns Garmin's -0.0
-        # into 0.0
-        kg = (row["weight_kg"] or 0) + 0.0
+        kg = set_kg(row["weight_kg"])
         sessions = heaviest.setdefault(label, {})
         previous = sessions.get(row["activity_id"])
         if previous is None or kg > previous[1]:
@@ -286,8 +253,8 @@ def heaviest_sets(rows):
 def load_strength_progress():
     """Per listed exercise: heaviest set in its first and latest session."""
     rows = get_db().execute(
-        "SELECT ss.start_time_local, st.activity_id, st.category, st.name,"
-        " st.weight_kg FROM strength_sets st"
+        "SELECT ss.start_time_local, st.activity_id, st.name, st.weight_kg"
+        " FROM strength_sets st"
         " JOIN strength_sessions ss USING (activity_id)"
         " ORDER BY ss.start_time_local, st.set_index"
     ).fetchall()
@@ -305,3 +272,55 @@ def load_strength_progress():
             "latest_date": sessions[-1][0],
         })
     return progress
+
+
+def exercise_display_name(name):
+    """'EZ_BAR_PREACHER_CURL' -> 'Ez bar preacher curl'."""
+    label = "Unnamed exercise"
+    if name is not None:
+        label = name.replace("_", " ").capitalize()
+    return label
+
+
+def session_weights(rows):
+    """{name: {activity_id: (date, [kg, ...])}}, in first-appearance order."""
+    weights = {}
+    for row in rows:
+        sessions = weights.setdefault(row["name"], {})
+        day = row["start_time_local"][:10]
+        session = sessions.setdefault(row["activity_id"], (day, []))
+        session[1].append(set_kg(row["weight_kg"]))
+    return weights
+
+
+def trend_points(sessions):
+    """Per session: date, lightest, average and heaviest set, set count."""
+    points = []
+    for day, kgs in sessions.values():
+        points.append({
+            "x": day,
+            "min": min(kgs),
+            "avg": round(sum(kgs) / len(kgs), 1),
+            "max": max(kgs),
+            "n": len(kgs),
+        })
+    return points
+
+
+def load_exercise_trends(session_label):
+    """Every exercise of one session group, with its per-session points."""
+    rows = get_db().execute(
+        "SELECT ss.start_time_local, st.activity_id, st.name, st.weight_kg"
+        " FROM strength_sets st"
+        " JOIN strength_sessions ss USING (activity_id)"
+        " WHERE ss.session_label = ?"
+        " ORDER BY ss.start_time_local, st.set_index",
+        (session_label,),
+    ).fetchall()
+    trends = []
+    for name, sessions in session_weights(rows).items():
+        trends.append({
+            "label": exercise_display_name(name),
+            "points": trend_points(sessions),
+        })
+    return trends

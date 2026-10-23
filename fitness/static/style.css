@@ -18,3 +18,25 @@ nav a {
 .chart-tall {
   height: 520px;
 }
+
+/* Small per-exercise charts, as many per row as fit */
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0 24px;
+}
+
+.chart-small {
+  height: 220px;
+  margin-bottom: 16px;
+}
+
+h3 {
+  font-size: 1em;
+  margin: 8px 0 4px;
+}
+
+.note {
+  color: #666;
+  margin-top: 0;
+}

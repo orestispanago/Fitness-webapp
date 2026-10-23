@@ -75,3 +75,62 @@ new Chart(progressCanvas, {
   },
   plugins: [gainLabelsPlugin(progressRows)],
 });
+
+// One exercise per chart: the average set as a line, with a band from the
+// lightest to the heaviest set behind it
+function exerciseTrendChart(canvas) {
+  const points = JSON.parse(canvas.dataset.points);
+  const series = (key) =>
+    points.map((point) => ({ x: point.x, y: point[key], point: point }));
+  return new Chart(canvas, {
+    type: "line",
+    data: {
+      datasets: [
+        {
+          label: "Lightest set",
+          data: series("min"),
+          borderColor: "transparent",
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          fill: false,
+        },
+        {
+          label: "Heaviest set",
+          data: series("max"),
+          borderColor: "transparent",
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          backgroundColor: seriesBlue(0.18),
+          // Fill down to the lightest-set dataset
+          fill: "-1",
+        },
+        {
+          label: "Average set",
+          data: series("avg"),
+          borderColor: SERIES_BLUE,
+          backgroundColor: SERIES_BLUE,
+        },
+      ],
+    },
+    options: {
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      scales: dailyScales("kg"),
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          filter: (item) => item.datasetIndex === 2,
+          callbacks: {
+            label: (context) => {
+              const point = context.raw.point;
+              return `Average ${point.avg} kg (${point.min}–${point.max}) ` +
+                `over ${point.n} sets`;
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+document.querySelectorAll(".exercise-chart").forEach(exerciseTrendChart);

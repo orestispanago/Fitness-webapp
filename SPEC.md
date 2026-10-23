@@ -26,10 +26,8 @@ charts, built incrementally, one vertical slice at a time.
   gained about a third, which trend lines per group hid. "Latest", not
   "best", so a drop shows (none among these 9 yet). The 9 come from a
   fixed list in `queries.py` (like `ACWR_BANDS`: hand-written reference
-  data), in chart order, each mapping a display label to the Garmin
-  identifiers that count as that exercise — e.g. pull-up = name
-  `WEIGHTED_PULL_UP`, or category `PULL_UP` when Garmin sent no name (13
-  of 80 pull-up sets). Chosen over picking exercises automatically (main
+  data), in chart order, each mapping a display label to one Garmin
+  exercise name (e.g. pull-up = `WEIGHTED_PULL_UP`). Chosen over picking exercises automatically (main
   lift + heaviest accessories), which with this data would pick calf
   raises (115–120 kg), not the chosen rows and leg work. A new exercise,
   or a new Garmin name for one, needs a list edit. `queries.py` returns
@@ -46,6 +44,37 @@ charts, built incrementally, one vertical slice at a time.
   Romanian deadlift (60 → 100). Chosen over kg bars with % only in the
   tooltip, and over one %-gain bar per exercise (which can't show the
   pull-up and hides the weights).
+  Below it, per session group (S1, S2, S3, S4, built S1 first as a
+  slice): one small chart per exercise in that group, x = session date,
+  a line for the average weight across that exercise's sets in the
+  session and a shaded band from the lightest to the heaviest set (the
+  band's top is the heaviest set). One chart per exercise, not one chart
+  per group with a line per exercise: on one kg axis the small lifts
+  (kickback 7.5 → 12.5) flatten next to squat (65 → 90), and the
+  average shows progress the heaviest set misses (kickback's heaviest
+  set sat at 10 kg for four sessions while its average rose 8.8 →
+  11.2). Weights are added kg, as on the bar chart; the band's bottom is
+  mostly warm-up sets. Garmin sends bodyweight sets as −1 g (stored as
+  −0.0 kg after rounding), counted as 0. The exercises are found
+  automatically, not from a list: one chart per distinct Garmin
+  exercise `name` in the group, labelled from that name
+  (`EZ_BAR_PREACHER_CURL` → "Ez bar preacher curl"), in the order the
+  exercises first appear in the group's sessions — no alias map, no
+  fallback category, no special cases.
+
+  Exercise names are kept clean **at the source**, not with rules in the
+  code: the inconsistencies (37 sets in 7 sessions, 2026-08-07 to
+  2026-09-19) were all on sets not linked to a workout step
+  (`wktStepIndex` null) — linked sets take the name from the workout —
+  and were fixed by editing them in Garmin Connect on 2026-10-24
+  (bodyweight variants `PULL_UP` with no name, `SUSPENDED_DIP`, `CRUNCH`
+  with no name → their `WEIGHTED_*` names; S3's one-off standing calf
+  raise → seated). A weighted exercise can be entered without weight, so
+  a bodyweight set is the weighted exercise at 0 kg. Since then every
+  group has exactly 6 exercises, each under one name. If a new odd name
+  appears (most likely on a set added outside the workout's steps), fix
+  it in Garmin and rebuild the DB: sets are fetched once per session, so
+  edits to already-synced sessions are only picked up by a rebuild.
 
 All three pages show full history only — no date range picker.
 
@@ -197,7 +226,7 @@ tooltip names every run.
 | Table | Columns | Notes |
 |---|---|---|
 | `strength_sessions` | `activity_id` (PK), `start_time_local`, `workout_id`, `session_label` (all NOT NULL) | Every activity with `activityType == "strength_training"` **and** a `workoutId` (activities from one of your Garmin Connect workouts); free sessions without one are skipped. Fetch: `get_activities_by_date(start, end)` with no type filter, then the type check — `strength_training` is a sub-type, which the endpoint rejects as a filter (400 "Activity type cannot be an activity sub type"). `session_label` = the activity name as-is (e.g. `S1 Squats`): Garmin names each session after its workout, so the name is the session group, the same idea as `run_type` from run names. Chosen over a hand-entered `workout_sessions` lookup (`workoutId` → label): every workout's 7–8 sessions so far have one `workoutId` and one matching name, and the name needs no table, no seed file and survives rebuilds, while a new workout version (new `workoutId`) with the same name just continues the group. Renaming a workout starts a new group (rename old sessions in Garmin to merge); two different workouts with one name would merge. Refresh: as for `runs` — start at `FIRST_DATA_DATE` if empty, else same calendar day as `MAX(start_time_local)`; insert-if-not-exists by `activity_id` (no 30-day re-scan floor: there is no lookup table whose late registration could make a session be skipped). |
-| `strength_sets` | `activity_id` (FK → `strength_sessions`, `ON DELETE CASCADE`), `set_index` (0-based, ACTIVE sets only), `category`, `reps` (NOT NULL), `name`, `weight_kg` (nullable); PK `(activity_id, set_index)` | Fetched once per session via `get_activity_exercise_sets`, filtered to `setType == "ACTIVE"`, taking `exercises[0]` (Garmin's top detected exercise); each sync fetches sets for every stored session that has none yet (`sessions_without_sets`), like laps. `weight` is in grams → kg (2 dp). `name` is nullable: Garmin sends only `category` on some sets (25 of 899: 13 pull-up, 12 crunch). `weight_kg` is nullable and stored as given: bodyweight sets come as `0`, `-0` or missing (2 sets). Charts handle both: the exercise list in `queries.py` names a fallback category for name-less sets, and a missing or `-0` weight counts as 0 kg added. The same exercise sometimes comes under two names (`PULL_UP`/`WEIGHTED_PULL_UP`, `CRUNCH`/`WEIGHTED_CRUNCH`, `SUSPENDED_DIP`/`WEIGHTED_SUSPENDED_DIP`); only listed exercises are charted, so only their names matter. |
+| `strength_sets` | `activity_id` (FK → `strength_sessions`, `ON DELETE CASCADE`), `set_index` (0-based, ACTIVE sets only), `category`, `reps` (NOT NULL), `name`, `weight_kg` (nullable); PK `(activity_id, set_index)` | Fetched once per session via `get_activity_exercise_sets`, filtered to `setType == "ACTIVE"`, taking `exercises[0]` (Garmin's top detected exercise); each sync fetches sets for every stored session that has none yet (`sessions_without_sets`), like laps. `weight` is in grams → kg (2 dp). `name` is nullable: Garmin sends only `category` on some sets (25 of 899: 13 pull-up, 12 crunch). `weight_kg` is nullable and stored as given: bodyweight sets come as `0`, `-0` or missing (2 sets). Charts count a missing or `-0` weight as 0 kg added. Names were made consistent at the source (see the strength page in "Pages"). |
 
 ## Code structure
 
@@ -373,8 +402,12 @@ All paths below are inside `fitness/`.
   4. done — `laps` sync + aerobic-decoupling chart (replaced the
      first pace-fade chart).
 
-  Strength page done: `strength_sessions` + `strength_sets` sync and the
-  first-vs-latest bar chart (DB rebuilt on 2026-10-24).
+  Strength page: `strength_sessions` + `strength_sets` sync and the
+  first-vs-latest bar chart done (DB rebuilt on 2026-10-24, and again
+  after the exercise names were fixed in Garmin). Per-exercise trend
+  charts (`queries.load_exercise_trends(session_label)`,
+  `exerciseTrendChart` in `strength.js`, a `.chart-grid` of
+  `.chart-small` charts): S1 done; S2, S3, S4 next.
 
   The nav in
   `base.html` only links pages that exist; it grows as pages are added.

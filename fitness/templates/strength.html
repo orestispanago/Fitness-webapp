@@ -10,5 +10,19 @@
   <canvas id="progress-chart" data-points='{{ progress | tojson }}'></canvas>
 </div>
 
+<h2>S1 Squats: every exercise per session</h2>
+<p class="note">Line: average set. Band: lightest to heaviest set.</p>
+<div class="chart-grid">
+  {% for exercise in s1_trends %}
+  <div>
+    <h3>{{ exercise.label }}</h3>
+    <div class="chart chart-small">
+      <canvas class="exercise-chart"
+        data-points='{{ exercise.points | tojson }}'></canvas>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
 <script src="{{ url_for('static', filename='strength.js') }}"></script>
 {% endblock %}
