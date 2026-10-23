@@ -14,8 +14,38 @@ charts, built incrementally, one vertical slice at a time.
   comparable if the distance changes. No average-HR chart: runs are
   paced to keep max HR under 150, so average HR (131–137 so far) is set
   by pacing, warm-up and heat, not fitness — fitness shows up as pace.
-- `/strength` — overview + per-session-group trend charts (e.g. S1 Squats,
-  S2 Chest, S3 Pull-ups, S4 Shoulders).
+- `/strength` — one horizontal bar chart: for each of 9 key exercises,
+  the heaviest set in its first session vs in its latest session (two
+  bars, kg; tooltip with both dates and the change). The exercises are
+  the 4 session groups' main lifts (squat S1, bench press S2, pull-up S3,
+  lateral raise S4) plus 5 big accessories (Romanian deadlift, seated
+  cable row, wide-grip seated cable row, leg curl, leg extension).
+  Chosen over per-group trend lines (heaviest set, estimated 1RM, or
+  main-lift volume per session): the bars show at a glance that the
+  accessories roughly doubled (+62% to +117%) while the main lifts
+  gained about a third, which trend lines per group hid. "Latest", not
+  "best", so a drop shows (none among these 9 yet). The 9 come from a
+  fixed list in `queries.py` (like `ACWR_BANDS`: hand-written reference
+  data), in chart order, each mapping a display label to the Garmin
+  identifiers that count as that exercise — e.g. pull-up = name
+  `WEIGHTED_PULL_UP`, or category `PULL_UP` when Garmin sent no name (13
+  of 80 pull-up sets). Chosen over picking exercises automatically (main
+  lift + heaviest accessories), which with this data would pick calf
+  raises (115–120 kg), not the chosen rows and leg work. A new exercise,
+  or a new Garmin name for one, needs a list edit. `queries.py` returns
+  ready rows (label, first kg and date, latest kg and date);
+  `strength.js` only draws them. Pull-ups show the added weight only, as
+  Garmin records it (first bar 0 = bodyweight, latest +15 kg), not body
+  weight + added from the `weight` table (78.5 → 90.2 kg): simpler, and
+  it matches the number on the belt and in the Garmin app. Each pair of
+  bars has its change written just past the longer bar (`+38%`; `+15 kg`
+  when the first value is 0, which has no %), by a small `gainLabels`
+  plugin in `strength.js` (like `bandsPlugin`, in `GREYS.label`), so
+  relative progress reads without hovering while the bars keep real kg —
+  on one kg axis lateral raise (15 → 20, +33%) looks flat next to
+  Romanian deadlift (60 → 100). Chosen over kg bars with % only in the
+  tooltip, and over one %-gain bar per exercise (which can't show the
+  pull-up and hides the weights).
 
 All three pages show full history only — no date range picker.
 
@@ -26,8 +56,9 @@ All three pages show full history only — no date range picker.
   fetch it.
 - Non-running / non-strength activities (hiking, swimming, rucking,
   etc.) — never stored.
-- Strength activities whose `workoutId` isn't in the `workout_sessions`
-  lookup table — silently skipped, not an error.
+- Strength activities without a `workoutId` (free sessions Garmin names
+  just "Strength", 3 so far, two of them 1–2 accidental sets) — silently
+  skipped, not an error.
 - Chart zoom/pan — hover tooltips only.
 - Database migrations / ORM — `fitness/schema.sql` is a one-time,
   idempotent initializer; schema changes are hand-edited directly in that
@@ -64,16 +95,16 @@ authenticated session and token cache (own token path, not
   stays a separate `init_db` command or becomes automatic (e.g. a shared
   `ensure_schema()` called by both the sync CLI and the app). Note that
   idempotent `CREATE TABLE IF NOT EXISTS` never alters an existing table
-  either way, and `workout_sessions` is hand-entered data that a rebuild
-  of `fitness.db` would lose — consider a seed file before the strength
-  slice.
+  either way. No table holds hand-entered data (the planned
+  `workout_sessions` lookup was dropped, see the strength page), so a
+  rebuild of `fitness.db` loses nothing a sync can't restore.
 - Open decision, deferred: whether to show "current status" summaries
   (e.g. the latest ACWR status and ratio as a text flag above the chart).
   Tried and removed for now; the data is already in `training_load`.
 
 ## Database schema
 
-11 tables, SQLite, defined in `schema.sql`. Foreign keys are declared and
+10 tables, SQLite, defined in `schema.sql`. Foreign keys are declared and
 enforced (`PRAGMA foreign_keys = ON`, which must be re-issued on every
 connection — SQLite doesn't persist it in the database file). No indexes
 beyond primary keys.
@@ -89,14 +120,7 @@ and `sync` to apply it to existing data.
 
 `ON DELETE CASCADE` is used on the two parent → child relationships
 (`laps` → `runs`, `strength_sets` → `strength_sessions`), where
-children are meaningless without their parent. It is deliberately **not**
-used on `strength_sessions` → `workout_sessions`: that lookup table is
-hand-edited, and a cascade there would let one accidental delete (or an
-`INSERT OR REPLACE`) silently wipe a workout's whole history — which a
-re-sync would not restore beyond the 30-day floor. With the default
-(`NO ACTION`), deleting a lookup row that sessions still reference fails;
-removing a workout for real means deleting its sessions first (their sets
-cascade), then the lookup row. Fix labels with `UPDATE`, never REPLACE.
+children are meaningless without their parent.
 
 ### Fitness page (6 tables)
 
@@ -168,13 +192,12 @@ tooltip names every run.
 | `runs` | `activity_id` (PK), `start_time_local`, `distance_m`, `duration_s`, `activity_name` (all NOT NULL), `avg_hr`, `location`, `run_type` (nullable) | Every activity with `activityType == "running"` (all run types, not just base-HR). Fetch: `get_activities_by_date(start, end, "running")`, then the type check; `duration_s` = `duration`, `avg_hr` = `averageHR` rounded (nullable: a run recorded without HR is a legitimate state; none so far). `location` and `run_type` are parsed from the name at sync time by `parse_run_name` in `sync/running.py`, so the naming rule lives in one place — strict patterns, no keyword matching: `<Location> - <Type>`, split on the first ` - ` (spaces included), location before, type after, taken as-is; `<Location> Running` (Garmin's automatic name for a run nobody renamed, e.g. `Jeddah Running`) → location, type null (a free run), so forgetting to rename one costs nothing; anything else → both null (a treadmill run might come as `Treadmill Running` and parse as location "Treadmill" — none yet; rename it if it shows up). Hyphens inside the type are kept, so `Base-HR` (custom HR-capped workout) and `Base` (Garmin's suggested workout), and likewise `Threshold-HR` and `Threshold`, are distinct types. Names are fixed at the source, in Garmin Connect, and kept consistent (`Jeddah-Threshold-HR` on 2026-10-10 was renamed to `Jeddah - Threshold-HR`); `Laganas - Base` (2026-09-07, max HR 149) stays `Base` — Garmin's default workout, only under 150 because it was cooler. Base-HR charts select `WHERE run_type = BASE_HR_RUN_TYPE` (`"Base-HR"`, in `config.py`, shared by sync and queries). Pace is derived when charting (`duration_s / distance_m`, shown as `m:ss /km`), not stored. Refresh: start at `FIRST_DATA_DATE` if empty, else same calendar day as `MAX(start_time_local)` (not +1 day, to avoid missing a second same-day activity a prior refresh only partially caught); insert-if-not-exists by `activity_id` (`store_new_runs`, `INSERT OR IGNORE`; the sync log shows runs found vs. new). Replaced an earlier `base_hr_runs` table that kept base-HR runs only (DB rebuilt on 2026-10-23, before any hand-entered data existed). |
 | `laps` | `activity_id` (FK → `runs`, `ON DELETE CASCADE`), `lap_index`, `distance_m`, `duration_s`, `avg_hr` (all NOT NULL); PK `(activity_id, lap_index)` | Fetched once per activity via `get_activity_splits` (`lapDTOs` only, `eventDTOs` dropped). Base-HR runs only: each sync fetches laps for every stored base-HR run that has none yet (`runs_without_laps`) — normally just the newly stored runs, but it also backfills and retries after a failed fetch; no refresh-overlap, laps don't change after the fact. `lap_index` = Garmin's `lapIndex` (1-based). Laps without `averageHR` or `distance` are skipped. Only base-HR laps are clean 1 km auto-laps, which decoupling assumes; interval workouts (`Threshold`, `Threshold-HR`, `Sprint`) have workout-step laps (e.g. 15 laps of 20–372 m) and even easy types can have odd mid-run laps (a 46 m lap on a Recovery run). Widening to other types later is a one-condition change in `runs_without_laps`, which backfills without a rebuild. All laps of a base-HR run are stored, including the short final lap (typically 10–60 m). Aerobic decoupling (`queries.load_decoupling`), per run: take the full-km laps (`distance_m >= FULL_KM_MIN_M`, 950, which excludes that short final lap), skip the first (warm-up: HR is still catching up, 110–119 vs. 131–135 in km 2), split the rest into two halves of whole laps (an odd count drops the middle lap), and compute efficiency = speed ÷ time-weighted average HR for each half; decoupling = (first − second) / first × 100, in % (positive = less efficient in the second half). With 5 full km that is km 2–3 vs. km 4–5. Null (a gap) if fewer than 3 full-km laps. Replaces an earlier pace-fade chart (last km pace minus first km pace), whose first-km baseline mixed warm-up pacing into the value; including km 1 (km 3 split in half) gave the same trend but 2–6 points higher, varying with the warm-up |
 
-### Strength page (3 tables)
+### Strength page (2 tables)
 
 | Table | Columns | Notes |
 |---|---|---|
-| `workout_sessions` | `workout_id` (PK, from Garmin), `session_label` (NOT NULL) | Manually maintained lookup table — add a row whenever a new workout generation is created on Garmin Connect. |
-| `strength_sessions` | `activity_id` (PK), `start_time_local` (NOT NULL), `workout_id` (NOT NULL, FK → `workout_sessions`, no cascade — see above) | Only inserted if `workout_id` already exists in `workout_sessions`; unrecognized workouts are silently skipped. Refresh: start at `FIRST_DATA_DATE` if empty, else `start = MIN(same calendar day as MAX(start_time_local), today - 30 days)` — the 30-day floor re-scans recent history on every refresh so a session skipped for an unregistered `workout_id` still gets picked up once that workout is registered, instead of being permanently missed once a later recognized session advances the high-water mark past it. (`runs` has no lookup-table gate, so it doesn't need this floor — plain same-day overlap is enough there.) |
-| `strength_sets` | `activity_id` (FK → `strength_sessions`, `ON DELETE CASCADE`), `set_index` (0-based, ACTIVE sets only), `category`, `name`, `reps` (all NOT NULL), `weight_kg` (nullable — bodyweight exercises, e.g. pull-ups, have no added load); PK `(activity_id, set_index)` | Fetched once per activity via `get_activity_exercise_sets`, filtered to `setType == "ACTIVE"`, taking `exercises[0]`. Inserted once, no refresh-overlap. Whether a null `weight_kg` renders as 0, a gap, or is excluded is a chart-layer decision, not a schema one. |
+| `strength_sessions` | `activity_id` (PK), `start_time_local`, `workout_id`, `session_label` (all NOT NULL) | Every activity with `activityType == "strength_training"` **and** a `workoutId` (activities from one of your Garmin Connect workouts); free sessions without one are skipped. Fetch: `get_activities_by_date(start, end)` with no type filter, then the type check — `strength_training` is a sub-type, which the endpoint rejects as a filter (400 "Activity type cannot be an activity sub type"). `session_label` = the activity name as-is (e.g. `S1 Squats`): Garmin names each session after its workout, so the name is the session group, the same idea as `run_type` from run names. Chosen over a hand-entered `workout_sessions` lookup (`workoutId` → label): every workout's 7–8 sessions so far have one `workoutId` and one matching name, and the name needs no table, no seed file and survives rebuilds, while a new workout version (new `workoutId`) with the same name just continues the group. Renaming a workout starts a new group (rename old sessions in Garmin to merge); two different workouts with one name would merge. Refresh: as for `runs` — start at `FIRST_DATA_DATE` if empty, else same calendar day as `MAX(start_time_local)`; insert-if-not-exists by `activity_id` (no 30-day re-scan floor: there is no lookup table whose late registration could make a session be skipped). |
+| `strength_sets` | `activity_id` (FK → `strength_sessions`, `ON DELETE CASCADE`), `set_index` (0-based, ACTIVE sets only), `category`, `reps` (NOT NULL), `name`, `weight_kg` (nullable); PK `(activity_id, set_index)` | Fetched once per session via `get_activity_exercise_sets`, filtered to `setType == "ACTIVE"`, taking `exercises[0]` (Garmin's top detected exercise); each sync fetches sets for every stored session that has none yet (`sessions_without_sets`), like laps. `weight` is in grams → kg (2 dp). `name` is nullable: Garmin sends only `category` on some sets (25 of 899: 13 pull-up, 12 crunch). `weight_kg` is nullable and stored as given: bodyweight sets come as `0`, `-0` or missing (2 sets). Charts handle both: the exercise list in `queries.py` names a fallback category for name-less sets, and a missing or `-0` weight counts as 0 kg added. The same exercise sometimes comes under two names (`PULL_UP`/`WEIGHTED_PULL_UP`, `CRUNCH`/`WEIGHTED_CRUNCH`, `SUSPENDED_DIP`/`WEIGHTED_SUSPENDED_DIP`); only listed exercises are charted, so only their names matter. |
 
 ## Code structure
 
@@ -219,7 +242,7 @@ All paths below are inside `fitness/`.
     the per-endpoint range limits (`RESTING_HR_MAX_DAYS`,
     `HRV_MAX_DAYS`).
   - `running.py` — `runs` and `laps`.
-  - `strength.py` — to come with its slice.
+  - `strength.py` — `strength_sessions` and `strength_sets`.
 
   Fully self-contained: opens its own connection, commits, and closes it
   on every run, independent of Flask's per-request connection in `db.py`.
@@ -320,7 +343,7 @@ All paths below are inside `fitness/`.
 
 - Built as vertical slices, one table at a time: fetch → insert → plot,
   fully working end to end before moving to the next table. Not building
-  broadly across all 11 tables or all 3 pages at once.
+  broadly across all 10 tables or all 3 pages at once.
 - First slice: `vo2max` — the simplest table (one API call, one value
   column, a single insert-or-update, a plain line chart), chosen specifically to
   prove the whole pipeline (auth, `db.py`, insert, route, chart) with
@@ -332,7 +355,7 @@ All paths below are inside `fitness/`.
   the schema evolves.
 - Status: all six fitness-page slices done (`vo2max`, `resting_hr`,
   `hrv`, `weight`, `sleep`, `training_load`); sync code split into the
-  `sync/` package. Running page in progress, built in steps:
+  `sync/` package. Running page done, built in steps:
   1. done — base-HR runs sync + `/running` page with a pace chart;
   2. done, then dropped — duration and average heart-rate charts
      (see "Pages");
@@ -342,6 +365,9 @@ All paths below are inside `fitness/`.
      scatter);
   4. done — `laps` sync + aerobic-decoupling chart (replaced the
      first pace-fade chart).
+
+  Strength page done: `strength_sessions` + `strength_sets` sync and the
+  first-vs-latest bar chart (DB rebuilt on 2026-10-24).
 
   The nav in
   `base.html` only links pages that exist; it grows as pages are added.

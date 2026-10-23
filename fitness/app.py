@@ -51,3 +51,9 @@ def running_page():
         decoupling=decoupling,
         metres_per_beat=metres_per_beat,
     )
+
+
+@app.route("/strength")
+def strength_page():
+    progress = queries.load_strength_progress()
+    return render_template("strength.html", progress=progress)

@@ -6,6 +6,21 @@ from fitness.db import get_db
 # Trailing window, in calendar days, for the rolling-average lines
 ROLLING_DAYS = 7
 
+# Exercises on the strength chart, in chart order: label, the Garmin
+# exercise names that count, and the category that counts when Garmin sent
+# no name (see SPEC.md)
+STRENGTH_EXERCISES = [
+    {"label": "Squat (S1)", "names": ["BARBELL_BACK_SQUAT"], "category": None},
+    {"label": "Bench press (S2)", "names": ["BARBELL_BENCH_PRESS"], "category": None},
+    {"label": "Pull-up (S3)", "names": ["WEIGHTED_PULL_UP"], "category": "PULL_UP"},
+    {"label": "Lateral raise (S4)", "names": ["DUMBBELL_LATERAL_RAISE"], "category": None},
+    {"label": "Romanian deadlift (S2)", "names": ["ROMANIAN_DEADLIFT"], "category": None},
+    {"label": "Seated cable row (S4)", "names": ["SEATED_CABLE_ROW"], "category": None},
+    {"label": "Wide-grip cable row (S1)", "names": ["WIDE_GRIP_SEATED_CABLE_ROW"], "category": None},
+    {"label": "Leg curl (S3)", "names": ["WEIGHTED_LEG_CURL"], "category": None},
+    {"label": "Leg extension (S3)", "names": ["WEIGHTED_LEG_EXTENSIONS"], "category": None},
+]
+
 # Shortest lap that counts as a full km (auto-laps are 1000 m; the final
 # lap of a run is usually only a few metres)
 FULL_KM_MIN_M = 950
@@ -200,3 +215,54 @@ def load_sleep_shortfall():
             "slept": row["sleep_duration_minutes"],
         })
     return points
+
+
+def exercise_label(category, name):
+    """Chart label of the listed exercise a set belongs to, or None."""
+    label = None
+    for exercise in STRENGTH_EXERCISES:
+        if name in exercise["names"]:
+            label = exercise["label"]
+        elif name is None and category == exercise["category"]:
+            label = exercise["label"]
+    return label
+
+
+def heaviest_sets(rows):
+    """{label: {activity_id: (date, heaviest kg)}}, sessions in date order."""
+    heaviest = {}
+    for row in rows:
+        label = exercise_label(row["category"], row["name"])
+        if label is None:
+            continue
+        # No weight = bodyweight = 0 kg added; + 0.0 turns Garmin's -0.0 into 0.0
+        kg = (row["weight_kg"] or 0) + 0.0
+        sessions = heaviest.setdefault(label, {})
+        previous = sessions.get(row["activity_id"])
+        if previous is None or kg > previous[1]:
+            sessions[row["activity_id"]] = (row["start_time_local"][:10], kg)
+    return heaviest
+
+
+def load_strength_progress():
+    """Per listed exercise: heaviest set in its first and latest session."""
+    rows = get_db().execute(
+        "SELECT ss.start_time_local, st.activity_id, st.category, st.name,"
+        " st.weight_kg FROM strength_sets st"
+        " JOIN strength_sessions ss USING (activity_id)"
+        " ORDER BY ss.start_time_local, st.set_index"
+    ).fetchall()
+    heaviest = heaviest_sets(rows)
+    progress = []
+    for exercise in STRENGTH_EXERCISES:
+        sessions = list(heaviest.get(exercise["label"], {}).values())
+        if len(sessions) == 0:
+            continue
+        progress.append({
+            "label": exercise["label"],
+            "first": sessions[0][1],
+            "first_date": sessions[0][0],
+            "latest": sessions[-1][1],
+            "latest_date": sessions[-1][0],
+        })
+    return progress

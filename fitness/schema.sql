@@ -67,22 +67,18 @@ CREATE TABLE IF NOT EXISTS laps (
 
 -- Strength page
 
-CREATE TABLE IF NOT EXISTS workout_sessions (
-    workout_id INTEGER PRIMARY KEY,
-    session_label TEXT NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS strength_sessions (
     activity_id INTEGER PRIMARY KEY,
     start_time_local TEXT NOT NULL,
-    workout_id INTEGER NOT NULL REFERENCES workout_sessions (workout_id)
+    workout_id INTEGER NOT NULL,
+    session_label TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS strength_sets (
     activity_id INTEGER NOT NULL REFERENCES strength_sessions (activity_id) ON DELETE CASCADE,
     set_index INTEGER NOT NULL,
     category TEXT NOT NULL,
-    name TEXT NOT NULL,
+    name TEXT,
     reps INTEGER NOT NULL,
     weight_kg REAL,
     PRIMARY KEY (activity_id, set_index)

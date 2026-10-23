@@ -1,0 +1,145 @@
+from datetime import date
+
+from fitness.config import FIRST_DATA_DATE
+
+
+# strength_sessions
+
+
+def sessions_start_date(conn):
+    """Calendar day of the latest stored session, or FIRST_DATA_DATE if none."""
+    # Same day, not +1: a second session that day may not have been synced yet
+    row = conn.execute(
+        "SELECT MAX(start_time_local) FROM strength_sessions"
+    ).fetchone()
+    start = FIRST_DATA_DATE
+    if row[0] is not None:
+        start = row[0][:10]
+    return start
+
+
+def fetch_activities(client, start, end):
+    # No type filter: strength_training is a sub-type, which the endpoint
+    # rejects as a filter
+    return client.get_activities_by_date(start, end)
+
+
+def is_workout_session(activity):
+    """A strength activity done from a Garmin Connect workout."""
+    type_key = (activity.get("activityType") or {}).get("typeKey")
+    matches = False
+    if type_key == "strength_training" and activity.get("workoutId"):
+        matches = True
+    return matches
+
+
+def parse_sessions(activities):
+    rows = []
+    for activity in activities:
+        if not is_workout_session(activity):
+            continue
+        rows.append(
+            (
+                activity["activityId"],
+                activity["startTimeLocal"],
+                activity["workoutId"],
+                activity["activityName"],
+            )
+        )
+    return rows
+
+
+def store_new_sessions(conn, rows):
+    """Insert sessions not stored yet; returns how many were new."""
+    cursor = conn.executemany(
+        """
+        INSERT OR IGNORE INTO strength_sessions
+            (activity_id, start_time_local, workout_id, session_label)
+        VALUES (?, ?, ?, ?)
+        """,
+        rows,
+    )
+    return cursor.rowcount
+
+
+def sync_sessions(conn, client):
+    start = sessions_start_date(conn)
+    end = date.today().isoformat()
+    activities = fetch_activities(client, start, end)
+    rows = parse_sessions(activities)
+    new_count = store_new_sessions(conn, rows)
+    print(
+        f"strength_sessions: {len(rows)} found, {new_count} new"
+        f" ({start} to {end})"
+    )
+
+
+# strength_sets
+
+
+def sessions_without_sets(conn):
+    """Sessions whose sets haven't been fetched yet (normally new ones)."""
+    rows = conn.execute(
+        "SELECT activity_id FROM strength_sessions"
+        " WHERE activity_id NOT IN (SELECT activity_id FROM strength_sets)"
+        " ORDER BY start_time_local"
+    ).fetchall()
+    activity_ids = []
+    for row in rows:
+        activity_ids.append(row[0])
+    return activity_ids
+
+
+def set_row(activity_id, set_index, exercise_set):
+    exercise = exercise_set["exercises"][0]
+    # Grams -> kg; None when Garmin sent no weight (bodyweight sets)
+    weight_kg = None
+    if exercise_set.get("weight") is not None:
+        weight_kg = round(exercise_set["weight"] / 1000, 2)
+    return (
+        activity_id,
+        set_index,
+        exercise["category"],
+        exercise.get("name"),
+        exercise_set["repetitionCount"],
+        weight_kg,
+    )
+
+
+def parse_sets(activity_id, response):
+    """ACTIVE sets only, numbered 0, 1, ... in order."""
+    rows = []
+    for exercise_set in response.get("exerciseSets") or []:
+        if exercise_set.get("setType") != "ACTIVE":
+            continue
+        rows.append(set_row(activity_id, len(rows), exercise_set))
+    return rows
+
+
+def store_new_sets(conn, rows):
+    """Insert sets not stored yet; returns how many were new."""
+    cursor = conn.executemany(
+        """
+        INSERT OR IGNORE INTO strength_sets
+            (activity_id, set_index, category, name, reps, weight_kg)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        rows,
+    )
+    return cursor.rowcount
+
+
+def sync_sets(conn, client):
+    # Sets don't change after a session, so each session's are fetched once
+    activity_ids = sessions_without_sets(conn)
+    new_count = 0
+    for activity_id in activity_ids:
+        response = client.get_activity_exercise_sets(activity_id)
+        rows = parse_sets(activity_id, response)
+        new_count += store_new_sets(conn, rows)
+    print(f"strength_sets: {new_count} new for {len(activity_ids)} sessions")
+
+
+def sync_all(conn, client):
+    sync_sessions(conn, client)
+    sync_sets(conn, client)

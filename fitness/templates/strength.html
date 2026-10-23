@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Strength{% endblock %}
+
+{% block content %}
+<h1>Strength</h1>
+
+<h2>Heaviest set: first vs. latest session</h2>
+<div class="chart chart-tall">
+  <canvas id="progress-chart" data-points='{{ progress | tojson }}'></canvas>
+</div>
+
+<script src="{{ url_for('static', filename='strength.js') }}"></script>
+{% endblock %}
