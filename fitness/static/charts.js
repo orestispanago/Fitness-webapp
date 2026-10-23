@@ -41,6 +41,36 @@ function bandsPlugin(bands) {
   };
 }
 
+// Chart.js plugin that draws labelled vertical lines behind the data,
+// marking dates. Each marker: { date: "YYYY-MM-DD", label }.
+function markersPlugin(markers) {
+  return {
+    id: "markers",
+    beforeDatasetsDraw(chart) {
+      const area = chart.chartArea;
+      const x = chart.scales.x;
+      const ctx = chart.ctx;
+      ctx.save();
+      markers.forEach((marker) => {
+        const left = x.getPixelForValue(x.parse(marker.date));
+        if (left < area.left || left > area.right) {
+          return;
+        }
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.45)";
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(left, area.top);
+        ctx.lineTo(left, area.bottom);
+        ctx.stroke();
+        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+        ctx.font = "11px sans-serif";
+        ctx.fillText(marker.label, left + 4, area.top + 12);
+      });
+      ctx.restore();
+    },
+  };
+}
+
 // Line chart of one daily series; points come from the canvas's
 // data-points attribute. Null values are drawn as gaps. Optional
 // plugins (e.g. bandsPlugin) are passed through to Chart.js.

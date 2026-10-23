@@ -33,6 +33,5 @@ new Chart(paceCanvas, {
   },
 });
 
-dailyLineChart("duration-chart", "Duration", "min");
 dailyLineChart("run-hr-chart", "Average HR", "bpm");
 dailyLineChart("pace-fade-chart", "Pace fade", "s/km slower");

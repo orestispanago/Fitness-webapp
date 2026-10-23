@@ -5,10 +5,13 @@ charts, built incrementally, one vertical slice at a time.
 
 ## Pages
 
-- `/fitness` — conditioning (VO2max, resting HR, HRV), weight, sleep
-  duration vs. sleep need, ACWR status flag.
-- `/running` — base-HR runs only: duration, pace, pace fade (last km minus
-  first km), heart rate, pace-vs-HR by location.
+- `/fitness` — conditioning (VO2max, resting HR, HRV), weight (with a
+  marker for the creatine start date), sleep
+  shortfall (sleep minus sleep need, per night), ACWR status flag.
+- `/running` — base-HR runs only: pace, pace fade (last km minus
+  first km), heart rate, pace-vs-HR by location. No duration chart: every
+  run so far is ~5 km, so duration only repeats pace, and pace stays
+  comparable if the distance changes.
 - `/strength` — overview + per-session-group trend charts (e.g. S1 Squats,
   S2 Chest, S3 Pull-ups, S4 Shoulders).
 
@@ -125,8 +128,8 @@ returns every day. Nulls render as gaps in the line charts.
 | `resting_hr` | `calendar_date` (PK), `resting_hr_bpm` (NOT NULL) | Sparse — days without a reading are absent | `get_rhr_daily` (list of `{calendarDate, value}`; value is a float, rounded to int). The library documents a ~1-year limit per request, so the range is fetched in ≤365-day windows (`date_windows` in `sync/common.py`) — one request today; more only once a bootstrap spans over a year |
 | `hrv` | `calendar_date` (PK), `hrv_value` (nullable) | Dense — one row per day in range; null if no overnight reading | `get_hrv_data_range` → `hrvSummaries[i].lastNightAvg` (ms); missing days filled with null. The API rejects ranges over 366 days (400 error), so fetched in ≤365-day windows. `weeklyAvg`, `baseline` and `status` are not stored |
 | `weight` | `calendar_date` (PK), `weight_kg` (NOT NULL) | Sparse — weigh-in days only; the chart line connects weigh-ins | `get_weight_snapshot` → `dateWeightList` (whole range in one request, no limit observed). `weight` is in grams → kg (2 dp). `sourceType == "USER_SETTING"` entries (the weight from Garmin profile settings, not a weigh-in) are skipped. Several weigh-ins on one day → latest by `timestampGMT` |
-| `sleep` | `calendar_date` (PK), `sleep_duration_minutes` (nullable), `sleep_need_minutes` (NOT NULL) | Sparse — recorded nights only (a missed night has no entry at all, so there's no need value to store; the chart line connects across it). Duration stays nullable in case Garmin sends a night with a need but no duration; none so far | `get_sleep_daily` → `values.totalSleepTimeInSeconds` (→ minutes, rounded) and `values.sleepNeed` (already minutes); entries without `sleepNeed` skipped. The library splits ranges into 28-day requests itself. Charted as two lines (sleep, dashed sleep need) in hours, converted in `queries.load_sleep`; the tooltip shows both values for the hovered night, formatted `7h 16m` (`formatHours` in `fitness.js`) |
-| `training_load` | `calendar_date` (PK), `acwr_status`, `acute_load`, `chronic_load`, `acwr_ratio` (all nullable) | Dense — the API returns every day; all four columns nulled together when `acwrStatus == "NONE"` (onboarding, 06-28 to 07-03). `acwr_ratio` can also be null on days that do have a status (07-04 to 07-10); stored as Garmin reports it, not recomputed (Garmin's ratio isn't a plain acute/chronic division) | `get_weekly_training_status` → `reportData[<deviceId>][i].acuteTrainingLoadDTO`: `acwrStatus`, `dailyTrainingLoadAcute`, `dailyTrainingLoadChronic`, `dailyAcuteChronicWorkloadRatio`. Whole range in one request, no limit observed. Entries with `primaryTrainingDevice == false` skipped. Page: a `dailyLineChart` of the ratio, with shaded status bands behind it (LOW < 0.8, OPTIMAL 0.8–1.5, HIGH ≥ 1.5; `ACWR_BANDS` in `fitness.js`). The cut-offs are inferred from the data — every stored status matches them — not from Garmin documentation; a VERY HIGH status (sports-science literature uses > 2.0) has never been observed, so it has no band yet. The y-axis uses `suggestedMax: 1.7` so the HIGH band is always visible |
+| `sleep` | `calendar_date` (PK), `sleep_duration_minutes` (nullable), `sleep_need_minutes` (NOT NULL) | Sparse — recorded nights only (a missed night has no entry at all, so there's no need value to store; the chart shows no bar for it). Duration stays nullable in case Garmin sends a night with a need but no duration; none so far | `get_sleep_daily` → `values.totalSleepTimeInSeconds` (→ minutes, rounded) and `values.sleepNeed` (already minutes); entries without `sleepNeed` skipped. The library splits ranges into 28-day requests itself. Charted as one bar per night (`queries.load_sleep_shortfall`): duration minus need, in minutes, red below zero (short of need), green above, darker grid line at zero; the tooltip shows only the difference (`-51 min`). Replaces an earlier two-line chart (sleep, dashed sleep need, in hours): the need is ~470 min almost every night, so the flat need line added little, while the gap to it is what matters (short on 88 of 116 nights, by 63 min on average) |
+| `training_load` | `calendar_date` (PK), `acwr_status`, `acute_load`, `chronic_load`, `acwr_ratio` (all nullable) | Dense — the API returns every day; all four columns nulled together when `acwrStatus == "NONE"` (onboarding, 06-28 to 07-03). `acwr_ratio` can also be null on days that do have a status (07-04 to 07-10); stored as Garmin reports it, not recomputed (Garmin's ratio isn't a plain acute/chronic division) | `get_weekly_training_status` → `reportData[<deviceId>][i].acuteTrainingLoadDTO`: `acwrStatus`, `dailyTrainingLoadAcute`, `dailyTrainingLoadChronic`, `dailyAcuteChronicWorkloadRatio`. Whole range in one request, no limit observed. Entries with `primaryTrainingDevice == false` skipped. Page: a `dailyLineChart` of the ratio, with shaded status bands behind it (LOW < 0.8, OPTIMAL 0.8–1.5, HIGH ≥ 1.5; `ACWR_BANDS` in `fitness.js`). The cut-offs are inferred from the data — every stored status matches them — not from Garmin documentation; a VERY HIGH status (sports-science literature uses > 2.0) has never been observed, so it has no band yet. The y-axis uses `suggestedMax: 1.7` so the HIGH band is always visible. Points with a ratio in the HIGH band (≥ 1.5, read from `ACWR_BANDS`) are drawn red |
 
 ### Running page (2 tables)
 
@@ -225,13 +228,18 @@ All paths below are inside `fitness/`.
     line chart (nulls as gaps), optional Chart.js plugins.
   - `bandsPlugin(bands)` — shades labelled horizontal ranges behind the
     data (used for the ACWR status zones).
+  - `markersPlugin(markers)` — labelled dashed vertical lines at dates,
+    behind the data. Markers are hand-written constants in the page's JS
+    (`WEIGHT_MARKERS` in `fitness.js`: creatine 5 g/day from
+    2026-10-07), like `ACWR_BANDS`; move them to a table only if they
+    multiply or are needed on several charts.
 
   All date charts use `interaction: { mode: "index", intersect: false }`,
   so hovering anywhere shows the tooltip for the nearest date. Charts
-  that don't fit `dailyLineChart` (sleep's two lines, read from
-  `data-duration` / `data-need`; pace with `m:ss` formatting) get their
+  that don't fit `dailyLineChart` (sleep shortfall as coloured bars;
+  pace with `m:ss` formatting) get their
   own `new Chart(...)` reusing `dailyScales`. Page-specific helpers
-  (`ACWR_BANDS`, `formatHours`, `formatPace`) stay in the page's file
+  (`ACWR_BANDS`, `formatPace`) stay in the page's file
   until another page needs them — same "wait for real duplication"
   principle as `sync/`.
 - Chart data flow: a route calls `queries.py`, which returns a plain
@@ -269,8 +277,8 @@ All paths below are inside `fitness/`.
   `hrv`, `weight`, `sleep`, `training_load`); sync code split into the
   `sync/` package. Running page in progress, built in steps:
   1. done — `base_hr_runs` sync + `/running` page with a pace chart;
-  2. done — duration (minutes to 1 dp) and average heart-rate charts,
-     both `dailyLineChart`;
+  2. done — average heart-rate chart (`dailyLineChart`). A duration
+     chart was built here too, then dropped (see "Pages");
   3. pace vs. HR by location — not yet;
   4. done — `laps` sync + pace-fade chart.
 

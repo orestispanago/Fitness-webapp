@@ -8,52 +8,57 @@ const ACWR_BANDS = [
 dailyLineChart("vo2max-chart", "VO2max", "ml/kg/min");
 dailyLineChart("resting-hr-chart", "Resting HR", "bpm");
 dailyLineChart("hrv-chart", "HRV", "ms");
-dailyLineChart("weight-chart", "Weight", "kg");
+const WEIGHT_MARKERS = [{ date: "2026-10-07", label: "Creatine 5 g/day" }];
+
+dailyLineChart("weight-chart", "Weight", "kg", [markersPlugin(WEIGHT_MARKERS)]);
 const acwrChart = dailyLineChart("acwr-chart", "ACWR", "acute:chronic ratio", [
   bandsPlugin(ACWR_BANDS),
 ]);
 
+// Points in the HIGH band in red; the rest keep the line's colour
+const acwrHigh = ACWR_BANDS.find((band) => band.label === "HIGH").from;
+const acwrDataset = acwrChart.data.datasets[0];
+acwrDataset.pointBackgroundColor = (context) =>
+  context.raw && context.raw.y >= acwrHigh
+    ? "rgb(255, 99, 71)"
+    : context.dataset.backgroundColor;
+acwrDataset.pointBorderColor = (context) =>
+  context.raw && context.raw.y >= acwrHigh
+    ? "rgb(255, 99, 71)"
+    : context.dataset.borderColor;
+
 acwrChart.options.scales.y.suggestedMax = 1.7;
 acwrChart.update();
 
-// 7.27 -> "7h 16m"
-function formatHours(hours) {
-  if (hours === null) {
-    return "no data";
-  }
-  const totalMinutes = Math.round(hours * 60);
-  const wholeHours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return `${wholeHours}h ${minutes}m`;
-}
-
 const sleepCanvas = document.getElementById("sleep-chart");
+const sleepScales = dailyScales("min vs. need");
+// Darker grid line at 0 = exactly the sleep need
+sleepScales.y.grid = {
+  color: (context) =>
+    context.tick.value === 0 ? "rgba(0, 0, 0, 0.5)" : "rgba(0, 0, 0, 0.1)",
+};
 
 new Chart(sleepCanvas, {
-  type: "line",
+  type: "bar",
   data: {
-    datasets: [
-      {
-        label: "Sleep",
-        data: JSON.parse(sleepCanvas.dataset.duration),
-      },
-      {
-        label: "Sleep need",
-        data: JSON.parse(sleepCanvas.dataset.need),
-        borderDash: [6, 4],
-        pointRadius: 0,
-      },
-    ],
+    datasets: [{
+      label: "Sleep shortfall",
+      data: JSON.parse(sleepCanvas.dataset.points),
+      backgroundColor: (context) =>
+        context.raw && context.raw.y < 0
+          ? "rgba(255, 99, 71, 0.7)"
+          : "rgba(75, 192, 92, 0.7)",
+    }],
   },
   options: {
     maintainAspectRatio: false,
     interaction: { mode: "index", intersect: false },
-    scales: dailyScales("hours"),
+    scales: sleepScales,
     plugins: {
+      legend: { display: false },
       tooltip: {
         callbacks: {
-          label: (context) =>
-            `${context.dataset.label}: ${formatHours(context.parsed.y)}`,
+          label: (context) => `${context.parsed.y} min`,
         },
       },
     },

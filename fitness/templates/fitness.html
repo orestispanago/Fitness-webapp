@@ -25,10 +25,9 @@
   <canvas id="weight-chart" data-points='{{ weight | tojson }}'></canvas>
 </div>
 
-<h2>Sleep vs. sleep need</h2>
+<h2>Sleep shortfall (sleep − sleep need)</h2>
 <div class="chart">
-  <canvas id="sleep-chart" data-duration='{{ sleep.duration | tojson }}'
-    data-need='{{ sleep.need | tojson }}'></canvas>
+  <canvas id="sleep-chart" data-points='{{ sleep_shortfall | tojson }}'></canvas>
 </div>
 
 <h2>Training load (ACWR)</h2>

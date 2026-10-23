@@ -52,19 +52,6 @@ def load_run_pace():
     return points
 
 
-def load_run_duration():
-    """One point per base-HR run: date and duration in minutes."""
-    rows = get_db().execute(
-        "SELECT start_time_local, duration_s"
-        " FROM base_hr_runs ORDER BY start_time_local"
-    ).fetchall()
-    points = []
-    for row in rows:
-        minutes = round(row["duration_s"] / 60, 1)
-        points.append({"x": row["start_time_local"][:10], "y": minutes})
-    return points
-
-
 def load_run_hr():
     """One point per base-HR run: date and average heart rate."""
     rows = get_db().execute(
@@ -105,25 +92,16 @@ def load_pace_fade():
     return points
 
 
-def minutes_to_hours(minutes):
-    hours = None
-    if minutes is not None:
-        hours = round(minutes / 60, 2)
-    return hours
-
-
-def load_sleep():
-    """Duration and need as two point lists, in hours."""
+def load_sleep_shortfall():
+    """Per night: sleep minus sleep need, in minutes (negative = short)."""
     rows = get_db().execute(
         "SELECT calendar_date, sleep_duration_minutes, sleep_need_minutes"
         " FROM sleep ORDER BY calendar_date"
     ).fetchall()
-    duration = []
-    need = []
+    points = []
     for row in rows:
-        day = row["calendar_date"]
-        hours_slept = minutes_to_hours(row["sleep_duration_minutes"])
-        hours_needed = minutes_to_hours(row["sleep_need_minutes"])
-        duration.append({"x": day, "y": hours_slept})
-        need.append({"x": day, "y": hours_needed})
-    return {"duration": duration, "need": need}
+        shortfall = None
+        if row["sleep_duration_minutes"] is not None:
+            shortfall = row["sleep_duration_minutes"] - row["sleep_need_minutes"]
+        points.append({"x": row["calendar_date"], "y": shortfall})
+    return points
