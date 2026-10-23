@@ -189,7 +189,7 @@ tooltip names every run.
 
 | Table | Columns | Notes |
 |---|---|---|
-| `runs` | `activity_id` (PK), `start_time_local`, `distance_m`, `duration_s`, `activity_name` (all NOT NULL), `avg_hr`, `location`, `run_type` (nullable) | Every activity with `activityType == "running"` (all run types, not just base-HR). Fetch: `get_activities_by_date(start, end, "running")`, then the type check; `duration_s` = `duration`, `avg_hr` = `averageHR` rounded (nullable: a run recorded without HR is a legitimate state; none so far). `location` and `run_type` are parsed from the name at sync time by `parse_run_name` in `sync/running.py`, so the naming rule lives in one place — strict patterns, no keyword matching: `<Location> - <Type>`, split on the first ` - ` (spaces included), location before, type after, taken as-is; `<Location> Running` (Garmin's automatic name for a run nobody renamed, e.g. `Jeddah Running`) → location, type null (a free run), so forgetting to rename one costs nothing; anything else → both null (a treadmill run might come as `Treadmill Running` and parse as location "Treadmill" — none yet; rename it if it shows up). Hyphens inside the type are kept, so `Base-HR` (custom HR-capped workout) and `Base` (Garmin's suggested workout), and likewise `Threshold-HR` and `Threshold`, are distinct types. Names are fixed at the source, in Garmin Connect, and kept consistent (`Jeddah-Threshold-HR` on 2026-10-10 was renamed to `Jeddah - Threshold-HR`); `Laganas - Base` (2026-09-07, max HR 149) stays `Base` — Garmin's default workout, only under 150 because it was cooler. Base-HR charts select `WHERE run_type = BASE_HR_RUN_TYPE` (`"Base-HR"`, in `config.py`, shared by sync and queries). Pace is derived when charting (`duration_s / distance_m`, shown as `m:ss /km`), not stored. Refresh: start at `FIRST_DATA_DATE` if empty, else same calendar day as `MAX(start_time_local)` (not +1 day, to avoid missing a second same-day activity a prior refresh only partially caught); insert-if-not-exists by `activity_id` (`store_new_runs`, `INSERT OR IGNORE`; the sync log shows runs found vs. new). Replaced an earlier `base_hr_runs` table that kept base-HR runs only (DB rebuilt on 2026-10-23, before any hand-entered data existed). |
+| `runs` | `activity_id` (PK), `start_time_local`, `distance_m`, `duration_s`, `activity_name` (all NOT NULL), `avg_hr`, `location`, `run_type` (nullable) | Every activity with `activityType == "running"` (all run types, not just base-HR). Fetch: `get_activities_by_date(start, end, "running")`, then the type check; `duration_s` = `duration`, `avg_hr` = `averageHR` rounded (nullable: a run recorded without HR is a legitimate state; none so far). `location` and `run_type` are parsed from the name at sync time by `parse_run_name` in `sync/running.py`, so the naming rule lives in one place — strict patterns, no keyword matching: `<Location> - <Type>`, split on the first ` - ` (spaces included), location before, type after, taken as-is; `<Location> Running` (Garmin's automatic name for a run nobody renamed, e.g. `Jeddah Running`) → location, type null (a free run), so forgetting to rename one costs nothing; anything else → both null (a treadmill run might come as `Treadmill Running` and parse as location "Treadmill" — none yet; rename it if it shows up). Hyphens inside the type are kept, so `Base-HR` (custom HR-capped workout) and `Base` (Garmin's suggested workout), and likewise `Threshold-HR` and `Threshold`, are distinct types. Names are fixed at the source, in Garmin Connect, and kept consistent (`Jeddah-Threshold-HR` on 2026-10-10 was renamed to `Jeddah - Threshold-HR`); `Laganas - Base` (2026-09-07, max HR 149) stays `Base` — Garmin's default workout, only under 150 because it was cooler. Base-HR charts select `WHERE run_type = BASE_HR_RUN_TYPE` (`"Base-HR"`, in `config.py`, shared by sync and queries). Pace is derived when charting (`duration_s / distance_m`, shown as `m:ss /km`), not stored. Refresh: start at `FIRST_DATA_DATE` if empty, else same calendar day as `MAX(start_time_local)` (not +1 day, to avoid missing a second same-day activity a prior refresh only partially caught); insert-if-not-exists by `activity_id` (`store_new`, `INSERT OR IGNORE`; the sync log shows runs found vs. new). Replaced an earlier `base_hr_runs` table that kept base-HR runs only (DB rebuilt on 2026-10-23, before any hand-entered data existed). |
 | `laps` | `activity_id` (FK → `runs`, `ON DELETE CASCADE`), `lap_index`, `distance_m`, `duration_s`, `avg_hr` (all NOT NULL); PK `(activity_id, lap_index)` | Fetched once per activity via `get_activity_splits` (`lapDTOs` only, `eventDTOs` dropped). Base-HR runs only: each sync fetches laps for every stored base-HR run that has none yet (`runs_without_laps`) — normally just the newly stored runs, but it also backfills and retries after a failed fetch; no refresh-overlap, laps don't change after the fact. `lap_index` = Garmin's `lapIndex` (1-based). Laps without `averageHR` or `distance` are skipped. Only base-HR laps are clean 1 km auto-laps, which decoupling assumes; interval workouts (`Threshold`, `Threshold-HR`, `Sprint`) have workout-step laps (e.g. 15 laps of 20–372 m) and even easy types can have odd mid-run laps (a 46 m lap on a Recovery run). Widening to other types later is a one-condition change in `runs_without_laps`, which backfills without a rebuild. All laps of a base-HR run are stored, including the short final lap (typically 10–60 m). Aerobic decoupling (`queries.load_decoupling`), per run: take the full-km laps (`distance_m >= FULL_KM_MIN_M`, 950, which excludes that short final lap), skip the first (warm-up: HR is still catching up, 110–119 vs. 131–135 in km 2), split the rest into two halves of whole laps (an odd count drops the middle lap), and compute efficiency = speed ÷ time-weighted average HR for each half; decoupling = (first − second) / first × 100, in % (positive = less efficient in the second half). With 5 full km that is km 2–3 vs. km 4–5. Null (a gap) if fewer than 3 full-km laps. Replaces an earlier pace-fade chart (last km pace minus first km pace), whose first-km baseline mixed warm-up pacing into the value; including km 1 (km 3 split in half) gave the same trend but 2–6 points higher, varying with the warm-up |
 
 ### Strength page (2 tables)
@@ -237,7 +237,7 @@ All paths below are inside `fitness/`.
     `sync_all(conn, client)`, commit once at the end (any failure rolls
     back the whole run). `__main__.py` just calls it, so the command is
     still `python -m fitness.sync`.
-  - `common.py` — `open_connection`, `date_windows`, `days_in_range`.
+  - `common.py` — `open_connection`, `activity_start_date`, `store_new`, `date_windows`, `days_in_range`.
   - `daily.py` — the six fitness-page tables, `daily_start_date`, and
     the per-endpoint range limits (`RESTING_HR_MAX_DAYS`,
     `HRV_MAX_DAYS`).
@@ -256,8 +256,15 @@ All paths below are inside `fitness/`.
     upfront. Extracted so far: in `daily.py`, `daily_start_date`
     (refresh start for daily tables) and `store_daily(conn, table,
     columns, rows)` (writes daily rows); in `common.py`, `date_windows`
-    (split long ranges for endpoints with a per-request limit) and
-    `days_in_range` (fill dense tables). Fetch and parse stay per-table —
+    (split long ranges for endpoints with a per-request limit),
+    `days_in_range` (fill dense tables), and for the activity tables
+    `activity_start_date(conn, table)` (refresh start: day of the latest
+    `start_time_local`) and `store_new(conn, table, columns, rows)`
+    (writes new activity rows; runs, laps, strength sessions and sets).
+    The "fetch details for activities that have none yet" step
+    (`runs_without_laps`/`sync_laps`, `sessions_without_sets`/`sync_sets`)
+    is similar in two places but not extracted — the API calls differ;
+    revisit if a third appears. Fetch and parse stay per-table —
     they differ in endpoint and response shape — and so does each
     `sync_<table>`, which shows that table's specifics.
   - Storing: daily rows are written as insert-or-update
@@ -265,7 +272,7 @@ All paths below are inside `fitness/`.
     by `store_daily` — new days are added, existing days overwritten.
     Never `INSERT OR REPLACE` (it deletes first, which can fire
     cascades). Activity tables, which only add rows that don't exist
-    yet, will use `store_new_<table>` (`INSERT OR IGNORE`).
+    yet, use `store_new` (`INSERT OR IGNORE`).
 - Templates: `base.html` holds the shared skeleton (doctype, head, the
   stylesheet link, the Chart.js CDN scripts, nav between the pages)
   with a `{% block content %}`; one template per page (`fitness.html`,

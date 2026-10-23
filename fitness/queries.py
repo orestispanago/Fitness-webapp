@@ -10,15 +10,51 @@ ROLLING_DAYS = 7
 # exercise names that count, and the category that counts when Garmin sent
 # no name (see SPEC.md)
 STRENGTH_EXERCISES = [
-    {"label": "Squat (S1)", "names": ["BARBELL_BACK_SQUAT"], "category": None},
-    {"label": "Bench press (S2)", "names": ["BARBELL_BENCH_PRESS"], "category": None},
-    {"label": "Pull-up (S3)", "names": ["WEIGHTED_PULL_UP"], "category": "PULL_UP"},
-    {"label": "Lateral raise (S4)", "names": ["DUMBBELL_LATERAL_RAISE"], "category": None},
-    {"label": "Romanian deadlift (S2)", "names": ["ROMANIAN_DEADLIFT"], "category": None},
-    {"label": "Seated cable row (S4)", "names": ["SEATED_CABLE_ROW"], "category": None},
-    {"label": "Wide-grip cable row (S1)", "names": ["WIDE_GRIP_SEATED_CABLE_ROW"], "category": None},
-    {"label": "Leg curl (S3)", "names": ["WEIGHTED_LEG_CURL"], "category": None},
-    {"label": "Leg extension (S3)", "names": ["WEIGHTED_LEG_EXTENSIONS"], "category": None},
+    {
+        "label": "Squat (S1)",
+        "names": ["BARBELL_BACK_SQUAT"],
+        "category": None,
+    },
+    {
+        "label": "Bench press (S2)",
+        "names": ["BARBELL_BENCH_PRESS"],
+        "category": None,
+    },
+    {
+        "label": "Pull-up (S3)",
+        "names": ["WEIGHTED_PULL_UP"],
+        "category": "PULL_UP",
+    },
+    {
+        "label": "Lateral raise (S4)",
+        "names": ["DUMBBELL_LATERAL_RAISE"],
+        "category": None,
+    },
+    {
+        "label": "Romanian deadlift (S2)",
+        "names": ["ROMANIAN_DEADLIFT"],
+        "category": None,
+    },
+    {
+        "label": "Seated cable row (S4)",
+        "names": ["SEATED_CABLE_ROW"],
+        "category": None,
+    },
+    {
+        "label": "Wide-grip cable row (S1)",
+        "names": ["WIDE_GRIP_SEATED_CABLE_ROW"],
+        "category": None,
+    },
+    {
+        "label": "Leg curl (S3)",
+        "names": ["WEIGHTED_LEG_CURL"],
+        "category": None,
+    },
+    {
+        "label": "Leg extension (S3)",
+        "names": ["WEIGHTED_LEG_EXTENSIONS"],
+        "category": None,
+    },
 ]
 
 # Shortest lap that counts as a full km (auto-laps are 1000 m; the final
@@ -199,7 +235,7 @@ def load_metres_per_beat():
 
 
 def load_sleep_shortfall():
-    """Per night: sleep minus need in minutes (negative = short), plus sleep."""
+    """Per night: sleep minus need in minutes (negative = short), and sleep."""
     rows = get_db().execute(
         "SELECT calendar_date, sleep_duration_minutes, sleep_need_minutes"
         " FROM sleep ORDER BY calendar_date"
@@ -208,7 +244,9 @@ def load_sleep_shortfall():
     for row in rows:
         shortfall = None
         if row["sleep_duration_minutes"] is not None:
-            shortfall = row["sleep_duration_minutes"] - row["sleep_need_minutes"]
+            shortfall = (
+                row["sleep_duration_minutes"] - row["sleep_need_minutes"]
+            )
         points.append({
             "x": row["calendar_date"],
             "y": shortfall,
@@ -235,7 +273,8 @@ def heaviest_sets(rows):
         label = exercise_label(row["category"], row["name"])
         if label is None:
             continue
-        # No weight = bodyweight = 0 kg added; + 0.0 turns Garmin's -0.0 into 0.0
+        # No weight = bodyweight = 0 kg added; + 0.0 turns Garmin's -0.0
+        # into 0.0
         kg = (row["weight_kg"] or 0) + 0.0
         sessions = heaviest.setdefault(label, {})
         previous = sessions.get(row["activity_id"])

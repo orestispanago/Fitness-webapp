@@ -14,32 +14,7 @@ const VO2MAX_BANDS = [
   { from: 54, to: null, label: "SUPERIOR", color: statusColor("blue", 0.12) },
 ];
 
-const vo2maxChart = dailyLineChart("vo2max-chart", "VO2max", "ml/kg/min", [
-  bandsPlugin(VO2MAX_BANDS),
-]);
-highlightPoints(
-  vo2maxChart,
-  VO2MAX_BANDS.find((band) => band.label === "EXCELLENT"),
-  statusColor("green"),
-);
-dailyAverageChart("resting-hr-chart", "Resting HR", "bpm");
-const hrvChart = dailyAverageChart("hrv-chart", "HRV", "ms");
-addHrvBaseline(hrvChart);
 const WEIGHT_MARKERS = [{ date: "2026-10-07", label: "Creatine 5 g/day" }];
-
-dailyAverageChart("weight-chart", "Weight", "kg", [
-  markersPlugin(WEIGHT_MARKERS),
-]);
-const acwrChart = dailyLineChart("acwr-chart", "ACWR", "acute:chronic ratio", [
-  bandsPlugin(ACWR_BANDS),
-]);
-
-acwrChart.options.scales.y.suggestedMax = 1.7;
-highlightPoints(
-  acwrChart,
-  ACWR_BANDS.find((band) => band.label === "HIGH"),
-  statusColor("red"),
-);
 
 // 419 -> "6:59"
 function formatMinutes(minutes) {
@@ -47,60 +22,6 @@ function formatMinutes(minutes) {
   const rest = String(minutes % 60).padStart(2, "0");
   return `${hours}:${rest}`;
 }
-
-const sleepCanvas = document.getElementById("sleep-chart");
-const sleepScales = dailyScales("min vs. need");
-// Darker grid line at 0 = exactly the sleep need
-sleepScales.y.grid = {
-  color: (context) =>
-    context.tick.value === 0 ? GREYS.strong : GREYS.grid,
-};
-
-new Chart(sleepCanvas, {
-  type: "bar",
-  data: {
-    datasets: [
-      {
-        label: "Sleep shortfall",
-        data: JSON.parse(sleepCanvas.dataset.points),
-        backgroundColor: (context) =>
-          context.raw && context.raw.y < 0
-            ? statusColor("red", 0.7)
-            : statusColor("green", 0.7),
-        order: 1,
-      },
-      {
-        type: "line",
-        label: "7-day average",
-        data: JSON.parse(sleepCanvas.dataset.average),
-        // Blue like the VO2max line; pink-red blends into the red bars
-        borderColor: SERIES_BLUE,
-        backgroundColor: SERIES_BLUE,
-        pointRadius: 0,
-        // Drawn on top of the bars
-        order: 0,
-      },
-    ],
-  },
-  options: {
-    maintainAspectRatio: false,
-    interaction: { mode: "index", intersect: false },
-    scales: sleepScales,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: (context) => {
-            if (context.dataset.type === "line") {
-              return `7-day average: ${Math.round(context.parsed.y)} min`;
-            }
-            return `${context.parsed.y} min (slept ${formatMinutes(context.raw.slept)})`;
-          },
-        },
-      },
-    },
-  },
-});
 
 // Garmin's HRV baseline behind the dots: balanced range (green) and the
 // strip down to the LOW limit (yellow), plus rings on the 7-day line where
@@ -164,3 +85,86 @@ function addHrvBaseline(chart) {
   };
   chart.update();
 }
+
+const vo2maxChart = dailyLineChart("vo2max-chart", "VO2max", "ml/kg/min", [
+  bandsPlugin(VO2MAX_BANDS),
+]);
+highlightPoints(
+  vo2maxChart,
+  VO2MAX_BANDS.find((band) => band.label === "EXCELLENT"),
+  statusColor("green"),
+);
+
+dailyAverageChart("resting-hr-chart", "Resting HR", "bpm");
+
+const hrvChart = dailyAverageChart("hrv-chart", "HRV", "ms");
+addHrvBaseline(hrvChart);
+
+dailyAverageChart("weight-chart", "Weight", "kg", [
+  markersPlugin(WEIGHT_MARKERS),
+]);
+
+const sleepCanvas = document.getElementById("sleep-chart");
+const sleepScales = dailyScales("min vs. need");
+// Darker grid line at 0 = exactly the sleep need
+sleepScales.y.grid = {
+  color: (context) =>
+    context.tick.value === 0 ? GREYS.strong : GREYS.grid,
+};
+
+new Chart(sleepCanvas, {
+  type: "bar",
+  data: {
+    datasets: [
+      {
+        label: "Sleep shortfall",
+        data: JSON.parse(sleepCanvas.dataset.points),
+        backgroundColor: (context) =>
+          context.raw && context.raw.y < 0
+            ? statusColor("red", 0.7)
+            : statusColor("green", 0.7),
+        order: 1,
+      },
+      {
+        type: "line",
+        label: "7-day average",
+        data: JSON.parse(sleepCanvas.dataset.average),
+        // Blue like the VO2max line; pink-red blends into the red bars
+        borderColor: SERIES_BLUE,
+        backgroundColor: SERIES_BLUE,
+        pointRadius: 0,
+        // Drawn on top of the bars
+        order: 0,
+      },
+    ],
+  },
+  options: {
+    maintainAspectRatio: false,
+    interaction: { mode: "index", intersect: false },
+    scales: sleepScales,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (context) => {
+            if (context.dataset.type === "line") {
+              return `7-day average: ${Math.round(context.parsed.y)} min`;
+            }
+            return `${context.parsed.y} min (slept ${formatMinutes(context.raw.slept)})`;
+          },
+        },
+      },
+    },
+  },
+});
+
+const acwrChart = dailyLineChart("acwr-chart", "ACWR", "acute:chronic ratio", [
+  bandsPlugin(ACWR_BANDS),
+]);
+
+acwrChart.options.scales.y.suggestedMax = 1.7;
+highlightPoints(
+  acwrChart,
+  ACWR_BANDS.find((band) => band.label === "HIGH"),
+  statusColor("red"),
+);

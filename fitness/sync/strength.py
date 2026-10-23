@@ -1,21 +1,9 @@
 from datetime import date
 
-from fitness.config import FIRST_DATA_DATE
+from fitness.sync.common import activity_start_date, store_new
 
 
 # strength_sessions
-
-
-def sessions_start_date(conn):
-    """Calendar day of the latest stored session, or FIRST_DATA_DATE if none."""
-    # Same day, not +1: a second session that day may not have been synced yet
-    row = conn.execute(
-        "SELECT MAX(start_time_local) FROM strength_sessions"
-    ).fetchone()
-    start = FIRST_DATA_DATE
-    if row[0] is not None:
-        start = row[0][:10]
-    return start
 
 
 def fetch_activities(client, start, end):
@@ -49,25 +37,18 @@ def parse_sessions(activities):
     return rows
 
 
-def store_new_sessions(conn, rows):
-    """Insert sessions not stored yet; returns how many were new."""
-    cursor = conn.executemany(
-        """
-        INSERT OR IGNORE INTO strength_sessions
-            (activity_id, start_time_local, workout_id, session_label)
-        VALUES (?, ?, ?, ?)
-        """,
-        rows,
-    )
-    return cursor.rowcount
-
-
 def sync_sessions(conn, client):
-    start = sessions_start_date(conn)
+    start = activity_start_date(conn, "strength_sessions")
     end = date.today().isoformat()
     activities = fetch_activities(client, start, end)
     rows = parse_sessions(activities)
-    new_count = store_new_sessions(conn, rows)
+    columns = [
+        "activity_id",
+        "start_time_local",
+        "workout_id",
+        "session_label",
+    ]
+    new_count = store_new(conn, "strength_sessions", columns, rows)
     print(
         f"strength_sessions: {len(rows)} found, {new_count} new"
         f" ({start} to {end})"
@@ -116,27 +97,22 @@ def parse_sets(activity_id, response):
     return rows
 
 
-def store_new_sets(conn, rows):
-    """Insert sets not stored yet; returns how many were new."""
-    cursor = conn.executemany(
-        """
-        INSERT OR IGNORE INTO strength_sets
-            (activity_id, set_index, category, name, reps, weight_kg)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        rows,
-    )
-    return cursor.rowcount
-
-
 def sync_sets(conn, client):
     # Sets don't change after a session, so each session's are fetched once
     activity_ids = sessions_without_sets(conn)
+    columns = [
+        "activity_id",
+        "set_index",
+        "category",
+        "name",
+        "reps",
+        "weight_kg",
+    ]
     new_count = 0
     for activity_id in activity_ids:
         response = client.get_activity_exercise_sets(activity_id)
         rows = parse_sets(activity_id, response)
-        new_count += store_new_sets(conn, rows)
+        new_count += store_new(conn, "strength_sets", columns, rows)
     print(f"strength_sets: {new_count} new for {len(activity_ids)} sessions")
 
 

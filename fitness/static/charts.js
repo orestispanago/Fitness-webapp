@@ -23,7 +23,11 @@ const GREYS = {
 };
 
 // Chart.js's default 1st-series blue, for series given an explicit colour
-const SERIES_BLUE = "rgb(54, 162, 235)";
+function seriesBlue(alpha = 1) {
+  return `rgba(54, 162, 235, ${alpha})`;
+}
+
+const SERIES_BLUE = seriesBlue();
 
 // Shared axes for charts of daily values: real-date x-axis, titled y-axis.
 function dailyScales(yTitle) {

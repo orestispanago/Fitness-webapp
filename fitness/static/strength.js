@@ -41,7 +41,7 @@ new Chart(progressCanvas, {
       {
         label: "First session",
         data: progressRows.map((row) => row.first),
-        backgroundColor: "rgba(54, 162, 235, 0.35)",
+        backgroundColor: seriesBlue(0.35),
       },
       {
         label: "Latest session",

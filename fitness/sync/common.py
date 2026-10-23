@@ -1,7 +1,7 @@
 import sqlite3
 from datetime import date, timedelta
 
-from fitness.config import DB_PATH
+from fitness.config import DB_PATH, FIRST_DATA_DATE
 
 
 def open_connection():
@@ -9,6 +9,29 @@ def open_connection():
     conn = sqlite3.connect(f"file:{DB_PATH}?mode=rw", uri=True)
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
+
+
+def activity_start_date(conn, table):
+    """Day of the latest start_time_local in table, or FIRST_DATA_DATE."""
+    # Same day, not +1: a second activity that day may not have been synced
+    # yet. Identifiers are internal constants, never user input.
+    row = conn.execute(f"SELECT MAX(start_time_local) FROM {table}").fetchone()
+    start = FIRST_DATA_DATE
+    if row[0] is not None:
+        start = row[0][:10]
+    return start
+
+
+def store_new(conn, table, columns, rows):
+    """Insert rows whose key isn't stored yet; returns how many were new."""
+    # Identifiers are internal constants, never user input.
+    placeholders = ", ".join(["?"] * len(columns))
+    cursor = conn.executemany(
+        f"INSERT OR IGNORE INTO {table} ({', '.join(columns)})"
+        f" VALUES ({placeholders})",
+        rows,
+    )
+    return cursor.rowcount
 
 
 def date_windows(start, end, max_days):

@@ -1,22 +1,13 @@
 from datetime import date
 
-from fitness.config import BASE_HR_RUN_TYPE, FIRST_DATA_DATE
+from fitness.config import BASE_HR_RUN_TYPE
+from fitness.sync.common import activity_start_date, store_new
 
 # Garmin's automatic name for a run nobody renamed: "<Location> Running"
 GARMIN_NAME_SUFFIX = " Running"
 
 
 # runs
-
-
-def runs_start_date(conn):
-    """Calendar day of the latest stored run, or FIRST_DATA_DATE if none."""
-    # Same day, not +1: a second run that day may not have been synced yet
-    row = conn.execute("SELECT MAX(start_time_local) FROM runs").fetchone()
-    start = FIRST_DATA_DATE
-    if row[0] is not None:
-        start = row[0][:10]
-    return start
 
 
 def fetch_runs(client, start, end):
@@ -67,26 +58,22 @@ def parse_runs(activities):
     return rows
 
 
-def store_new_runs(conn, rows):
-    """Insert runs not stored yet; returns how many were new."""
-    cursor = conn.executemany(
-        """
-        INSERT OR IGNORE INTO runs
-            (activity_id, start_time_local, distance_m, duration_s,
-             avg_hr, location, run_type, activity_name)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        rows,
-    )
-    return cursor.rowcount
-
-
 def sync_runs(conn, client):
-    start = runs_start_date(conn)
+    start = activity_start_date(conn, "runs")
     end = date.today().isoformat()
     activities = fetch_runs(client, start, end)
     rows = parse_runs(activities)
-    new_count = store_new_runs(conn, rows)
+    columns = [
+        "activity_id",
+        "start_time_local",
+        "distance_m",
+        "duration_s",
+        "avg_hr",
+        "location",
+        "run_type",
+        "activity_name",
+    ]
+    new_count = store_new(conn, "runs", columns, rows)
     print(f"runs: {len(rows)} found, {new_count} new ({start} to {end})")
 
 
@@ -127,27 +114,21 @@ def parse_laps(activity_id, splits):
     return rows
 
 
-def store_new_laps(conn, rows):
-    """Insert laps not stored yet; returns how many were new."""
-    cursor = conn.executemany(
-        """
-        INSERT OR IGNORE INTO laps
-            (activity_id, lap_index, distance_m, duration_s, avg_hr)
-        VALUES (?, ?, ?, ?, ?)
-        """,
-        rows,
-    )
-    return cursor.rowcount
-
-
 def sync_laps(conn, client):
     # Laps don't change after a run, so each run's laps are fetched once
     activity_ids = runs_without_laps(conn)
+    columns = [
+        "activity_id",
+        "lap_index",
+        "distance_m",
+        "duration_s",
+        "avg_hr",
+    ]
     new_count = 0
     for activity_id in activity_ids:
         splits = client.get_activity_splits(activity_id)
         rows = parse_laps(activity_id, splits)
-        new_count += store_new_laps(conn, rows)
+        new_count += store_new(conn, "laps", columns, rows)
     print(f"laps: {new_count} new for {len(activity_ids)} runs")
 
 
