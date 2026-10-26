@@ -14,46 +14,27 @@ charts, built incrementally, one vertical slice at a time.
   comparable if the distance changes. No average-HR chart: runs are
   paced to keep max HR under 150, so average HR (131–137 so far) is set
   by pacing, warm-up and heat, not fitness — fitness shows up as pace.
-- `/strength` — one horizontal bar chart: for each of 9 key exercises,
-  the heaviest set in its first session vs in its latest session (two
-  bars, kg; tooltip with both dates and the change). The exercises are
-  the 4 session groups' main lifts (squat S1, bench press S2, pull-up S3,
-  lateral raise S4) plus 5 big accessories (Romanian deadlift, seated
-  cable row, wide-grip seated cable row, leg curl, leg extension).
-  Chosen over per-group trend lines (heaviest set, estimated 1RM, or
-  main-lift volume per session): the bars show at a glance that the
-  accessories roughly doubled (+62% to +117%) while the main lifts
-  gained about a third, which trend lines per group hid. "Latest", not
-  "best", so a drop shows (none among these 9 yet). The 9 come from a
-  fixed list in `queries/strength.py` (like `ACWR_BANDS`: hand-written reference
-  data), in chart order, each mapping a display label to one Garmin
-  exercise name (e.g. pull-up = `WEIGHTED_PULL_UP`). Chosen over picking exercises automatically (main
-  lift + heaviest accessories), which with this data would pick calf
-  raises (115–120 kg), not the chosen rows and leg work. A new exercise,
-  or a new Garmin name for one, needs a list edit. `queries/strength.py` returns
-  ready rows (label, first kg and date, latest kg and date);
-  `strength.js` only draws them. Pull-ups show the added weight only, as
-  Garmin records it (first bar 0 = bodyweight, latest +15 kg), not body
-  weight + added from the `weight` table (78.5 → 90.2 kg): simpler, and
-  it matches the number on the belt and in the Garmin app. Each pair of
-  bars has its change written just past the longer bar (`+38%`; `+15 kg`
-  when the first value is 0, which has no %), by a small `createGainLabelsPlugin`
-  plugin in `strength.js` (like `createBandsPlugin`, in `GREYS.label`), so
-  relative progress reads without hovering while the bars keep real kg —
-  on one kg axis lateral raise (15 → 20, +33%) looks flat next to
-  Romanian deadlift (60 → 100). Chosen over kg bars with % only in the
-  tooltip, and over one %-gain bar per exercise (which can't show the
-  pull-up and hides the weights).
-  Below it, per session group (S1, S2, S3, S4; built S1 first as a
+- `/strength` — per-exercise trend charts only, one section per session
+  group. An earlier first-vs-latest bar chart (heaviest set per key
+  exercise, with gain labels) was removed on 2026-10-26: the trend
+  charts are what gets watched, and the variants tried — side-by-side,
+  stacked, one chart per group, a bar next to or inside each trend —
+  either repeated the trends or forced a 0-based axis that flattened
+  them.
+  Per session group (S1, S2, S3, S4; built S1 first as a
   slice, then the rest): one small chart per exercise in that group, x = session date,
   a line for the average weight across that exercise's sets in the
   session and a shaded band from the lightest to the heaviest set (the
-  band's top is the heaviest set). One chart per exercise, not one chart
+  band's top is the heaviest set). Line and band take the session group's colour
+  (`SESSION_COLORS` in `strength.js`, in group order: S1 blue, S2 orange,
+  S3 green, S4 purple, then yellow and pink; any further group grey, not
+  a repeated colour), chosen over one colour for all, an accent on each
+  group's main lift only, and record markers on the heaviest set. One chart per exercise, not one chart
   per group with a line per exercise: on one kg axis the small lifts
   (kickback 7.5 → 12.5) flatten next to squat (65 → 90), and the
   average shows progress the heaviest set misses (kickback's heaviest
   set sat at 10 kg for four sessions while its average rose 8.8 →
-  11.2). Weights are added kg, as on the bar chart; the band's bottom is
+  11.2). Weights are added kg (bodyweight = 0); the band's bottom is
   mostly warm-up sets. Garmin sends bodyweight sets as −1 g (stored as
   −0.0 kg after rounding), counted as 0. The exercises are found
   automatically, not from a list: one chart per distinct Garmin
@@ -193,7 +174,7 @@ HR 1.89 → 0.28 bpm, HRV 5.56 → 0.94 ms).
 | `hrv` | `calendar_date` (PK), `hrv_value`, `hrv_status`, `baseline_low_upper`, `baseline_balanced_low`, `baseline_balanced_upper` (all nullable) | Dense — one row per day in range; null if no overnight reading | `get_hrv_data_range` → `hrvSummaries[i].lastNightAvg` (ms); missing days filled with null. The API rejects ranges over 366 days (400 error), so fetched in ≤365-day windows. Same response: `status` → `hrv_status` (`BALANCED`, `UNBALANCED`, `LOW`; Garmin's `NONE` while calibrating, the first 18 days, is stored as null, as for `training_load`), and `baseline.lowUpper` / `balancedLow` / `balancedUpper` → the three `baseline_*` columns (null while calibrating). Status is stored, not computed: the rule it follows (7-day average inside `balancedLow`–`balancedUpper`, edges included = BALANCED; outside = UNBALANCED; below `lowUpper` = LOW) matched all 99 days with a baseline but is inferred, not documented, LOW has never occurred, and recent days sit within 1 ms of the edge, where our own 7-day average (≤ 1.1 ms off Garmin's) could flip it. `weeklyAvg` and `baseline.markerValue` (Garmin's gauge position) are not stored. Page: the HRV chart draws the balanced range (green) and the strip down to `lowUpper` (yellow, dashed LOW limit) behind the dots and 7-day line (`addHrvBaseline` in `fitness.js`, from `queries.daily.load_hrv_baseline` via `data-baseline`); rings on the 7-day line mark days whose Garmin status isn't BALANCED (UNBALANCED orange, LOW red; 3 so far: 2026-10-17, -20, -21), so status is read from the line, never from single dots; the tooltip names Garmin's status for the day. Since status follows the 7-day average, a single night outside the band (e.g. 93 ms on 2026-09-14, average 82 inside 67–83) is still BALANCED. Added 2026-10-23 (DB rebuilt; strength tables still empty) |
 | `weight` | `calendar_date` (PK), `weight_kg` (NOT NULL) | Sparse — weigh-in days only; the chart line connects weigh-ins | `get_weight_snapshot` → `dateWeightList` (whole range in one request, no limit observed). `weight` is in grams → kg (2 dp). `sourceType == "USER_SETTING"` entries (the weight from Garmin profile settings, not a weigh-in) are skipped. Several weigh-ins on one day → latest by `timestampGMT` |
 | `sleep` | `calendar_date` (PK), `sleep_duration_minutes` (nullable), `sleep_need_minutes` (NOT NULL) | Sparse — recorded nights only (a missed night has no entry at all, so there's no need value to store; the chart shows no bar for it). Duration stays nullable in case Garmin sends a night with a need but no duration; none so far | `get_sleep_daily` → `values.totalSleepTimeInSeconds` (→ minutes, rounded) and `values.sleepNeed` (already minutes); entries without `sleepNeed` skipped. The library splits ranges into 28-day requests itself. Charted as one bar per night (`queries.daily.load_sleep_shortfall`): duration minus need, in minutes, red below zero (short of need), green above, darker grid line at zero, plus a 7-day rolling-average line on top (`queries.daily.compute_rolling_average`, as for resting HR/HRV/weight), in Chart.js's default blue rather than the pink-red of the other averages, which blends into the red bars. Each point also carries the night's sleep (`slept`, minutes), so the tooltip shows `-51 min (slept 6:59)` (`formatMinutes` in `fitness.js`) and the average (`7-day average: -68 min`). Replaces an earlier two-line chart (sleep, dashed sleep need, in hours): the need is ~470 min almost every night, so the flat need line added little, while the gap to it is what matters (short on 88 of 116 nights, by 63 min on average) |
-| `training_load` | `calendar_date` (PK), `acwr_status`, `acute_load`, `chronic_load`, `acwr_ratio` (all nullable) | Dense — the API returns every day; all four columns nulled together when `acwrStatus == "NONE"` (onboarding, 06-28 to 07-03). `acwr_ratio` can also be null on days that do have a status (07-04 to 07-10); stored as Garmin reports it, not recomputed (Garmin's ratio isn't a plain acute/chronic division) | `get_weekly_training_status` → `reportData[<deviceId>][i].acuteTrainingLoadDTO`: `acwrStatus`, `dailyTrainingLoadAcute`, `dailyTrainingLoadChronic`, `dailyAcuteChronicWorkloadRatio`. Whole range in one request, no limit observed. Entries with `primaryTrainingDevice == false` skipped. Page: a `plotDailyLineChart` of the ratio, with shaded status bands behind it (LOW < 0.8, OPTIMAL 0.8–1.5, HIGH ≥ 1.5; `ACWR_BANDS` in `fitness.js`). The cut-offs are inferred from the data — every stored status matches them — not from Garmin documentation; a VERY HIGH status (sports-science literature uses > 2.0) has never been observed, so it has no band yet. The y-axis uses `suggestedMax: 1.7` so the HIGH band is always visible. Points with a ratio in the HIGH band (≥ 1.5, read from `ACWR_BANDS`) are drawn red (`highlightPoints`) |
+| `training_load` | `calendar_date` (PK), `acwr_status`, `acute_load`, `chronic_load`, `acwr_ratio` (all nullable) | Dense — the API returns every day; all four columns nulled together when `acwrStatus == "NONE"` (onboarding, 06-28 to 07-03). `acwr_ratio` can also be null on days that do have a status (07-04 to 07-10); stored as Garmin reports it, not recomputed (Garmin's ratio isn't a plain acute/chronic division) | `get_weekly_training_status` → `reportData[<deviceId>][i].acuteTrainingLoadDTO`: `acwrStatus`, `dailyTrainingLoadAcute`, `dailyTrainingLoadChronic`, `dailyAcuteChronicWorkloadRatio`. Whole range in one request, no limit observed. Entries with `primaryTrainingDevice == false` skipped. Page: a `plotDailyLineChart` of the ratio, with shaded status bands behind it (LOW < 0.8, OPTIMAL 0.8–1.5, HIGH ≥ 1.5; `ACWR_BANDS` in `fitness.js`). The cut-offs are inferred from the data — every stored status matches them — not from Garmin documentation; a VERY HIGH status (sports-science literature uses > 2.0) has never been observed, so it has no band yet. The y-axis uses `suggestedMax: 1.7` so the HIGH band is always visible. Points with a ratio in the HIGH band (≥ 1.5, read from `ACWR_BANDS`) are drawn red (`highlightPoints`). Considered and not built (2026-10-25): a daily training-load bar chart under ACWR (per-activity `activityTrainingLoad`, stacked by type) to explain its peaks and dips — the ACWR chart is enough as it is |
 
 ### Running page (2 tables)
 
@@ -269,9 +250,9 @@ All paths below are inside `fitness/`.
   routes. No SQL in `app.py`. Split from a single `queries.py` once it
   reached ~340 lines across three pages; `common.py` holds the one
   helper shared across pages, `get_date_part` (timestamp → `YYYY-MM-DD`,
-  used 4 times). In `strength.py`, the bar chart and
-  the trend charts read sets the same way (`load_strength_sets` →
-  `group_set_weights`); the bar chart takes each session's max.
+  used 4 times). In `strength.py`, the trend charts read sets via
+  `load_strength_sets` → `group_set_weights`, sections ordered by
+  `list_session_labels`.
 - `init_db.py` — separate setup command that applies `schema.sql`.
   Run once, and again after editing the schema. `sync/` and `db.py`
   open the DB in `mode=rw`, so they fail loudly instead of silently
@@ -420,9 +401,10 @@ All paths below are inside `fitness/`.
   4. done — `laps` sync + aerobic-decoupling chart (replaced the
      first pace-fade chart).
 
-  Strength page: `strength_sessions` + `strength_sets` sync and the
-  first-vs-latest bar chart done (DB rebuilt on 2026-10-24, and again
-  after the exercise names were fixed in Garmin). Per-exercise trend
+  Strength page: `strength_sessions` + `strength_sets` sync done (DB
+  rebuilt on 2026-10-24, and again after the exercise names were fixed
+  in Garmin); a first-vs-latest bar chart was built and later removed
+  (see "Pages"). Per-exercise trend
   charts (`queries.strength.load_exercise_trends()`,
   `plotExerciseTrendChart` in `strength.js`, a `.chart-grid` of
   `.chart-small` charts): done for all groups. The groups come from the

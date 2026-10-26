@@ -1,96 +1,21 @@
-// "+38%", or "+15 kg" when the first value is 0 (no % from 0)
-function formatGain(row) {
-  const diff = Math.round((row.latest - row.first) * 10) / 10;
-  let sign = "";
-  if (diff >= 0) {
-    sign = "+";
-  }
-  let text = `${sign}${diff} kg`;
-  if (row.first > 0) {
-    text = `${sign}${Math.round((diff / row.first) * 100)}%`;
-  }
-  return text;
-}
+// One colour per session group, in group order (S1, S2, …): line and band
+// of every exercise chart in that group; groups past the list are grey
+const SESSION_COLORS = [
+  "54, 162, 235",
+  "235, 104, 52",
+  "27, 175, 122",
+  "98, 80, 214",
+  "237, 161, 0",
+  "232, 123, 164",
+];
+const OTHER_SESSION_COLOR = "138, 137, 133";
 
-// Chart.js plugin that writes each exercise's change just past the end of
-// its longer bar
-function createGainLabelsPlugin(rows) {
-  return {
-    id: "gainLabels",
-    afterDatasetsDraw(chart) {
-      const ctx = chart.ctx;
-      ctx.save();
-      ctx.fillStyle = GREYS.label;
-      ctx.font = "bold 12px sans-serif";
-      ctx.textBaseline = "middle";
-      for (let index = 0; index < rows.length; index += 1) {
-        const first = chart.getDatasetMeta(0).data[index];
-        const latest = chart.getDatasetMeta(1).data[index];
-        const x = Math.max(first.x, latest.x) + 6;
-        ctx.fillText(formatGain(rows[index]), x, (first.y + latest.y) / 2);
-      }
-      ctx.restore();
-    },
-  };
-}
-
-function formatProgressTooltip(context, rows) {
-  const row = rows[context.dataIndex];
-  let text = `Latest (${row.latest_date}): ${row.latest} kg`;
-  if (context.datasetIndex === 0) {
-    text = `First (${row.first_date}): ${row.first} kg`;
+function getSessionColor(groupIndex, alpha = 1) {
+  let rgb = OTHER_SESSION_COLOR;
+  if (groupIndex < SESSION_COLORS.length) {
+    rgb = SESSION_COLORS[groupIndex];
   }
-  return text;
-}
-
-function plotProgressChart() {
-  const canvas = document.getElementById("progress-chart");
-  const rows = JSON.parse(canvas.dataset.points);
-  const labels = [];
-  const firstKgs = [];
-  const latestKgs = [];
-  for (const row of rows) {
-    labels.push(row.label);
-    firstKgs.push(row.first);
-    latestKgs.push(row.latest);
-  }
-  return new Chart(canvas, {
-    type: "bar",
-    data: {
-      labels: labels,
-      datasets: [
-        {
-          label: "First session",
-          data: firstKgs,
-          backgroundColor: getSeriesBlue(0.35),
-        },
-        {
-          label: "Latest session",
-          data: latestKgs,
-          backgroundColor: SERIES_BLUE,
-        },
-      ],
-    },
-    options: {
-      indexAxis: "y",
-      maintainAspectRatio: false,
-      // Room for the gain labels past the longest bar
-      layout: { padding: { right: 48 } },
-      scales: {
-        x: { beginAtZero: true, title: { display: true, text: "kg" } },
-      },
-      plugins: {
-        tooltip: {
-          callbacks: {
-            label: (context) => formatProgressTooltip(context, rows),
-            footer: (items) =>
-              `Change: ${formatGain(rows[items[0].dataIndex])}`,
-          },
-        },
-      },
-    },
-    plugins: [createGainLabelsPlugin(rows)],
-  });
+  return `rgba(${rgb}, ${alpha})`;
 }
 
 // Chart.js points from one key of each trend point ("min", "avg", "max");
@@ -113,6 +38,7 @@ function formatTrendTooltip(context) {
 // lightest to the heaviest set behind it
 function plotExerciseTrendChart(canvas) {
   const points = JSON.parse(canvas.dataset.points);
+  const groupIndex = Number(canvas.dataset.group);
   return new Chart(canvas, {
     type: "line",
     data: {
@@ -131,15 +57,15 @@ function plotExerciseTrendChart(canvas) {
           borderColor: "transparent",
           pointRadius: 0,
           pointHoverRadius: 0,
-          backgroundColor: getSeriesBlue(0.18),
+          backgroundColor: getSessionColor(groupIndex, 0.18),
           // Fill down to the lightest-set dataset
           fill: "-1",
         },
         {
           label: "Average set",
           data: buildTrendSeries(points, "avg"),
-          borderColor: SERIES_BLUE,
-          backgroundColor: SERIES_BLUE,
+          borderColor: getSessionColor(groupIndex),
+          backgroundColor: getSessionColor(groupIndex),
         },
       ],
     },
@@ -159,7 +85,6 @@ function plotExerciseTrendChart(canvas) {
   });
 }
 
-plotProgressChart();
 for (const canvas of document.querySelectorAll(".exercise-chart")) {
   plotExerciseTrendChart(canvas);
 }

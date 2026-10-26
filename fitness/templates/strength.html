@@ -5,22 +5,15 @@
 {% block content %}
 <h1>Strength</h1>
 
-<h2>Heaviest set: first vs. latest session</h2>
-<div class="chart chart-tall">
-  <canvas id="progress-chart" data-points='{{ progress | tojson }}'></canvas>
-</div>
-
 {% for group in groups %}
-<h2>{{ group.label }}: every exercise per session</h2>
-{% if loop.first %}
-<p class="note">Line: average set. Band: lightest to heaviest set.</p>
-{% endif %}
+{% set group_index = loop.index0 %}
+<h2>{{ group.label }}</h2>
 <div class="chart-grid">
   {% for exercise in group.exercises %}
   <div>
     <h3>{{ exercise.label }}</h3>
     <div class="chart chart-small">
-      <canvas class="exercise-chart"
+      <canvas class="exercise-chart" data-group='{{ group_index }}'
         data-points='{{ exercise.points | tojson }}'></canvas>
     </div>
   </div>

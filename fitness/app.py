@@ -56,6 +56,5 @@ def running_page():
 
 @app.route("/strength")
 def strength_page():
-    progress = strength.load_strength_progress()
     groups = strength.load_exercise_trends()
-    return render_template("strength.html", progress=progress, groups=groups)
+    return render_template("strength.html", groups=groups)

@@ -1,23 +1,6 @@
 from fitness.db import get_db
 from fitness.queries.common import get_date_part
 
-# Exercises on the strength bar chart, in chart order: label and Garmin
-# exercise name (names are kept consistent in Garmin itself, see SPEC.md)
-STRENGTH_EXERCISES = [
-    {"label": "Squat (S1)", "name": "BARBELL_BACK_SQUAT"},
-    {"label": "Bench press (S2)", "name": "BARBELL_BENCH_PRESS"},
-    {"label": "Pull-up (S3)", "name": "WEIGHTED_PULL_UP"},
-    {"label": "Lateral raise (S4)", "name": "DUMBBELL_LATERAL_RAISE"},
-    {"label": "Romanian deadlift (S2)", "name": "ROMANIAN_DEADLIFT"},
-    {"label": "Seated cable row (S4)", "name": "SEATED_CABLE_ROW"},
-    {
-        "label": "Wide-grip cable row (S1)",
-        "name": "WIDE_GRIP_SEATED_CABLE_ROW",
-    },
-    {"label": "Leg curl (S3)", "name": "WEIGHTED_LEG_CURL"},
-    {"label": "Leg extension (S3)", "name": "WEIGHTED_LEG_EXTENSIONS"},
-]
-
 
 def normalize_added_kg(weight_kg):
     # No weight or Garmin's -0.0 (bodyweight) = 0 kg added; Garmin has no
@@ -48,24 +31,13 @@ def group_set_weights(rows):
     return weights
 
 
-def load_strength_progress():
-    """Per listed exercise: heaviest set in its first and latest session."""
-    weights = group_set_weights(load_strength_sets())
-    progress = []
-    for exercise in STRENGTH_EXERCISES:
-        sessions = list(weights.get(exercise["name"], {}).values())
-        if len(sessions) == 0:
-            continue
-        first = sessions[0]
-        latest = sessions[-1]
-        progress.append({
-            "label": exercise["label"],
-            "first": max(first["kgs"]),
-            "first_date": first["date"],
-            "latest": max(latest["kgs"]),
-            "latest_date": latest["date"],
-        })
-    return progress
+def list_session_labels(rows):
+    """Session groups in these sets, sorted by label (the page's order)."""
+    labels = []
+    for row in rows:
+        if row["session_label"] not in labels:
+            labels.append(row["session_label"])
+    return sorted(labels)
 
 
 def format_exercise_name(name):
@@ -104,11 +76,12 @@ def build_exercise_trends(rows):
 
 def load_exercise_trends():
     """Per session group, sorted by label: its exercises' trends."""
+    rows = load_strength_sets()
     rows_by_group = {}
-    for row in load_strength_sets():
+    for row in rows:
         rows_by_group.setdefault(row["session_label"], []).append(row)
     groups = []
-    for label in sorted(rows_by_group):
+    for label in list_session_labels(rows):
         exercises = build_exercise_trends(rows_by_group[label])
         groups.append({"label": label, "exercises": exercises})
     return groups
