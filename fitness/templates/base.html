@@ -17,8 +17,16 @@
     <a href="{{ url_for('fitness_page') }}">Fitness</a>
     <a href="{{ url_for('running_page') }}">Running</a>
     <a href="{{ url_for('strength_page') }}">Strength</a>
+    <form class="sync-form" method="post" action="{{ url_for('sync') }}">
+      <input type="hidden" name="next" value="{{ request.path }}">
+      <button type="submit">Sync</button>
+    </form>
   </nav>
+  {% for category, message in get_flashed_messages(with_categories=true) %}
+  <p class="flash flash-{{ category }}">{{ message }}</p>
+  {% endfor %}
   {% block content %}{% endblock %}
+  <script src="{{ url_for('static', filename='sync.js') }}"></script>
 </body>
 
 </html>

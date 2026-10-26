@@ -93,14 +93,31 @@ authenticated session and token cache (own token path, not
 
 ## Refresh behavior
 
-- Eventually, a refresh button will re-run the Garmin fetch only (weather
-  is out of scope entirely) and reload from SQLite. Deferred for now —
-  see "Build order" below — `python -m fitness.sync` is run manually from the terminal
-  until there are enough tables built to justify wiring up the button.
-- On failure, the plan is to show an error banner and keep displaying the
-  last-good data already in the database — no partial/corrupt overwrite.
-  The exact mechanism (e.g. Flask flash messages) isn't decided yet —
-  moot until the button itself is built.
+- A Sync button at the right end of the nav (in `base.html`, so on every
+  page) runs the same `fitness.sync.main()` as the CLI, which still
+  works. Added 2026-10-26.
+  - It is a `<form method="post">` to `/sync` (POST, not a GET link: a
+    sync writes data, and a GET could be prefetched, reopened from
+    history or re-run by a reload). A hidden `next` field carries
+    `request.path`; after the sync the route redirects there, or to `/`
+    if `next` isn't a local path (open-redirect guard,
+    `is_local_path` in `app.py`).
+  - The request blocks until the sync is done. `static/sync.js`
+    (loaded at the end of `base.html`) disables the button and shows
+    "Syncing…" on submit, so a second click can't start a second Garmin
+    login and fetch.
+  - Feedback is a Flask flash message, shown as a full-width bar between
+    the nav and the page content: `Synced at HH:MM` (category
+    `success`, green) or `Sync failed: <error>` (category `error`, red);
+    `.flash`, `.flash-success`, `.flash-error` in `style.css`. The route
+    catches any `Exception`, not only Garmin's, so every failure lands
+    back on the page; the full traceback goes to the terminal via
+    `app.logger.exception`. No per-table counts in the message — those
+    stay in the terminal output (`print` in `sync/`).
+  - Flashes need `app.secret_key`; it is `os.urandom(24)`, new on each
+    start, since the session holds nothing but flash messages.
+- On failure the last-good data stays: `main()` commits once at the end,
+  so a failed sync writes nothing.
 - Open decision, deferred until the app is finalized: whether DB setup
   stays a separate `init_db` command or becomes automatic (e.g. a shared
   `ensure_schema()` called by both the sync CLI and the app). Note that
@@ -230,14 +247,15 @@ All paths below are inside `fitness/`.
   data structure), `format_*` (to display text); in JS `plot…` (draws a
   chart now), `create…Plugin` (a Chart.js plugin, run later), `get…`
   (a lookup), `build…`, `format…`. Exceptions: Flask route functions
-  (`<page>_page`, `index`), `main`, `init_app`. The JS follows the same
+  (`<page>_page`, `index`, `sync`), `main`, `init_app`. The JS follows the same
   style rules as the Python (no ternaries, explicit `for` loops instead
   of `.map`/`.filter`/`.forEach`, one `return` per function).
 - `app.py` — Flask routes only. Flat, no application factory, no
   blueprints (not worth the overhead for 3 static pages with no auth and
   no test suite). Page route functions are named `<page>_page`
   (`fitness_page`, `running_page`, `strength_page`); that name is also
-  the `url_for` endpoint.
+  the `url_for` endpoint. `sync` (POST `/sync`) runs the sync; see
+  "Refresh behavior".
 - `db.py` — per-request SQLite connection via `flask.g` and
   `app.teardown_appcontext`, following Flask's own documented pattern.
 - `queries/` — read-only SQL for the pages, one module per page like
@@ -302,15 +320,16 @@ All paths below are inside `fitness/`.
     cascades). Activity tables, which only add rows that don't exist
     yet, use `store_new` (`INSERT OR IGNORE`).
 - Templates: `base.html` holds the shared skeleton (doctype, head, the
-  stylesheet link, the Chart.js CDN scripts, nav between the pages)
-  with a `{% block content %}`; one template per page (`fitness.html`,
+  stylesheet link, the Chart.js CDN scripts, nav between the pages,
+  the Sync button and flash messages) with a `{% block content %}`; one template per page (`fitness.html`,
   `running.html`, `strength.html`) extends it. Templates contain no
   inline JS or CSS.
 - Static files: `static/style.css` holds all styling. One JS file per
   page (`static/fitness.js`, `static/running.js`, `static/strength.js`),
   loaded at the end of that page's template, plus `static/charts.js`
   with helpers shared by every page, loaded from `base.html` after
-  Chart.js:
+  Chart.js; and `static/sync.js` for the nav's Sync button, loaded at the
+  end of `base.html`. `charts.js` holds:
   - `buildDailyScales(yTitle)` — real-date x-axis, titled y-axis.
   - `plotDailyLineChart(canvasId, label, yTitle, plugins)` — single-series
     line chart (nulls as gaps), optional Chart.js plugins.
@@ -383,9 +402,9 @@ All paths below are inside `fitness/`.
   column, a single insert-or-update, a plain line chart), chosen specifically to
   prove the whole pipeline (auth, `db.py`, insert, route, chart) with
   minimal complexity before adding anything else.
-- The refresh button is deferred (see "Refresh behavior" above) — run
-  `python -m fitness.sync` manually from the terminal while slices are
-  being built.
+- The Sync button was deferred while slices were built (`python -m
+  fitness.sync` run from the terminal); added 2026-10-26, see "Refresh
+  behavior".
 - No ORM, no migration tooling — `schema.sql` is hand-edited directly as
   the schema evolves.
 - Status: all six fitness-page slices done (`vo2max`, `resting_hr`,
