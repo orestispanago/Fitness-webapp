@@ -36,7 +36,7 @@ function plotPaceChart() {
 
 // Colour per run_type (see SPEC.md); types missing here show in grey
 const RUN_TYPE_COLORS = {
-  // Same blue as the base-HR pace and decoupling lines
+  // Same blue as the base-HR pace line
   "Base-HR": SERIES_BLUE,
   Threshold: "#eb6834",
   Base: "#1baf7a",
@@ -188,7 +188,4 @@ function plotMetresPerBeatChart() {
 }
 
 plotPaceChart();
-plotDailyLineChart(
-  "decoupling-chart", "Aerobic decoupling", "% efficiency lost",
-);
 plotMetresPerBeatChart();

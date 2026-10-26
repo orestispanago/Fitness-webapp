@@ -5,20 +5,19 @@
 {% block content %}
 <h1>Running</h1>
 
-<h2>Pace (base-HR runs)</h2>
-<div class="chart">
-  <canvas id="pace-chart" data-points='{{ pace | tojson }}'></canvas>
-</div>
-
-<h2>Aerobic decoupling (base-HR runs, km 2–3 vs. km 4–5)</h2>
-<div class="chart">
-  <canvas id="decoupling-chart" data-points='{{ decoupling | tojson }}'></canvas>
-</div>
-
-<h2>Metres per heartbeat (all runs)</h2>
-<div class="chart">
-  <canvas id="metres-per-beat-chart"
-    data-points='{{ metres_per_beat | tojson }}'></canvas>
+<div class="chart-grid chart-grid-large">
+  <div>
+    <h2>Metres per heartbeat (all runs)</h2>
+    <div class="chart">
+      <canvas id="metres-per-beat-chart" data-points='{{ metres_per_beat | tojson }}'></canvas>
+    </div>
+  </div>
+  <div>
+    <h2>Pace (base-HR runs)</h2>
+    <div class="chart">
+      <canvas id="pace-chart" data-points='{{ pace | tojson }}'></canvas>
+    </div>
+  </div>
 </div>
 
 <script src="{{ url_for('static', filename='running.js') }}"></script>

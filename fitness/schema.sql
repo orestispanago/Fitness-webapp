@@ -56,15 +56,6 @@ CREATE TABLE IF NOT EXISTS runs (
     activity_name TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS laps (
-    activity_id INTEGER NOT NULL REFERENCES runs (activity_id) ON DELETE CASCADE,
-    lap_index INTEGER NOT NULL,
-    distance_m REAL NOT NULL,
-    duration_s REAL NOT NULL,
-    avg_hr INTEGER NOT NULL,
-    PRIMARY KEY (activity_id, lap_index)
-);
-
 -- Strength page
 
 CREATE TABLE IF NOT EXISTS strength_sessions (

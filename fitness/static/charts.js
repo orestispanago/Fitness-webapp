@@ -29,6 +29,10 @@ function getSeriesBlue(alpha = 1) {
 
 const SERIES_BLUE = getSeriesBlue();
 
+// Compact legends for every chart, so they wrap less on narrow screens
+Chart.defaults.plugins.legend.labels.boxWidth = 12;
+Chart.defaults.plugins.legend.labels.font = { size: 11 };
+
 // Shared axes for charts of daily values: real-date x-axis, titled y-axis.
 function buildDailyScales(yTitle) {
   return {

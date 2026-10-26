@@ -57,12 +57,10 @@ def fitness_page():
 @app.route("/running")
 def running_page():
     pace = running.load_run_pace()
-    decoupling = running.load_decoupling()
     metres_per_beat = running.load_metres_per_beat()
     return render_template(
         "running.html",
         pace=pace,
-        decoupling=decoupling,
         metres_per_beat=metres_per_beat,
     )
 

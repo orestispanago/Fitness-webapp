@@ -8,8 +8,12 @@ charts, built incrementally, one vertical slice at a time.
 - `/fitness` — conditioning (VO2max, resting HR, HRV), weight (with a
   marker for the creatine start date), sleep
   shortfall (sleep minus sleep need, per night), ACWR status flag.
-- `/running` — pace and aerobic decoupling for base-HR runs only, plus
-  metres per heartbeat (speed ÷ average HR) for all runs. No duration chart: every
+- `/running` — pace for base-HR runs only, plus
+  metres per heartbeat (speed ÷ average HR) for all runs. No aerobic
+  decoupling chart: one was built (efficiency, speed ÷ HR, in km 2–3
+  vs. km 4–5 of each base-HR run, from a `laps` table) and removed on
+  2026-10-26, with the `laps` table and its sync, because it was hard
+  to read at a glance. No duration chart: every
   run so far is ~5 km, so duration only repeats pace, and pace stays
   comparable if the distance changes. No average-HR chart: runs are
   paced to keep max HR under 150, so average HR (131–137 so far) is set
@@ -131,7 +135,7 @@ authenticated session and token cache (own token path, not
 
 ## Database schema
 
-10 tables, SQLite, defined in `schema.sql`. Foreign keys are declared and
+9 tables, SQLite, defined in `schema.sql`. Foreign keys are declared and
 enforced (`PRAGMA foreign_keys = ON`, which must be re-issued on every
 connection — SQLite doesn't persist it in the database file). No indexes
 beyond primary keys.
@@ -145,9 +149,9 @@ otherwise show up as a bogus early point on every chart. Changing the
 date only affects empty tables; delete `fitness.db`, re-run `init_db`
 and `sync` to apply it to existing data.
 
-`ON DELETE CASCADE` is used on the two parent → child relationships
-(`laps` → `runs`, `strength_sets` → `strength_sessions`), where
-children are meaningless without their parent.
+`ON DELETE CASCADE` is used on the parent → child relationship
+`strength_sets` → `strength_sessions`, where sets are meaningless
+without their session.
 
 ### Fitness page (6 tables)
 
@@ -193,9 +197,9 @@ HR 1.89 → 0.28 bpm, HRV 5.56 → 0.94 ms).
 | `sleep` | `calendar_date` (PK), `sleep_duration_minutes` (nullable), `sleep_need_minutes` (NOT NULL) | Sparse — recorded nights only (a missed night has no entry at all, so there's no need value to store; the chart shows no bar for it). Duration stays nullable in case Garmin sends a night with a need but no duration; none so far | `get_sleep_daily` → `values.totalSleepTimeInSeconds` (→ minutes, rounded) and `values.sleepNeed` (already minutes); entries without `sleepNeed` skipped. The library splits ranges into 28-day requests itself. Charted as one bar per night (`queries.daily.load_sleep_shortfall`): duration minus need, in minutes, red below zero (short of need), green above, darker grid line at zero, plus a 7-day rolling-average line on top (`queries.daily.compute_rolling_average`, as for resting HR/HRV/weight), in Chart.js's default blue rather than the pink-red of the other averages, which blends into the red bars. Each point also carries the night's sleep (`slept`, minutes), so the tooltip shows `-51 min (slept 6:59)` (`formatMinutes` in `fitness.js`) and the average (`7-day average: -68 min`). Replaces an earlier two-line chart (sleep, dashed sleep need, in hours): the need is ~470 min almost every night, so the flat need line added little, while the gap to it is what matters (short on 88 of 116 nights, by 63 min on average) |
 | `training_load` | `calendar_date` (PK), `acwr_status`, `acute_load`, `chronic_load`, `acwr_ratio` (all nullable) | Dense — the API returns every day; all four columns nulled together when `acwrStatus == "NONE"` (onboarding, 06-28 to 07-03). `acwr_ratio` can also be null on days that do have a status (07-04 to 07-10); stored as Garmin reports it, not recomputed (Garmin's ratio isn't a plain acute/chronic division) | `get_weekly_training_status` → `reportData[<deviceId>][i].acuteTrainingLoadDTO`: `acwrStatus`, `dailyTrainingLoadAcute`, `dailyTrainingLoadChronic`, `dailyAcuteChronicWorkloadRatio`. Whole range in one request, no limit observed. Entries with `primaryTrainingDevice == false` skipped. Page: a `plotDailyLineChart` of the ratio, with shaded status bands behind it (LOW < 0.8, OPTIMAL 0.8–1.5, HIGH ≥ 1.5; `ACWR_BANDS` in `fitness.js`). The cut-offs are inferred from the data — every stored status matches them — not from Garmin documentation; a VERY HIGH status (sports-science literature uses > 2.0) has never been observed, so it has no band yet. The y-axis uses `suggestedMax: 1.7` so the HIGH band is always visible. Points with a ratio in the HIGH band (≥ 1.5, read from `ACWR_BANDS`) are drawn red (`highlightPoints`). Considered and not built (2026-10-25): a daily training-load bar chart under ACWR (per-activity `activityTrainingLoad`, stacked by type) to explain its peaks and dips — the ACWR chart is enough as it is |
 
-### Running page (2 tables)
+### Running page (1 table)
 
-Charts: pace and aerobic decoupling (base-HR runs), metres per
+Charts: pace (base-HR runs), metres per
 heartbeat (all runs). Metres per heartbeat (`queries.running.load_metres_per_beat`)
 = speed in m/min ÷ average HR, one dot per run with HR, x = date; it
 replaced a planned pace-vs-HR-by-location scatter, which with HR capped
@@ -205,7 +209,7 @@ for every run type (0.87–0.95 in early July, 0.99–1.07 in Sep–Oct).
 Each point also carries name, location, type, pace and HR for the
 tooltip. A thin grey line joins the runs in date order. Colour =
 `run_type`, from a fixed map in `running.js` (`RUN_TYPE_COLORS`, like
-`ACWR_BANDS`): `Base-HR` blue (`SERIES_BLUE`, as on the pace and decoupling lines), `Threshold` orange, `Base` aqua,
+`ACWR_BANDS`): `Base-HR` blue (`SERIES_BLUE`, as on the pace line), `Threshold` orange, `Base` aqua,
 `Sprint` yellow, `Recovery` magenta, `Threshold-HR` violet; null shows
 as "Free run" in grey, and a type missing from the map also shows grey,
 under its own name — the cue to add it. Shape = location:
@@ -217,14 +221,13 @@ tooltip names every run.
 | Table | Columns | Notes |
 |---|---|---|
 | `runs` | `activity_id` (PK), `start_time_local`, `distance_m`, `duration_s`, `activity_name` (all NOT NULL), `avg_hr`, `location`, `run_type` (nullable) | Every activity with `activityType == "running"` (all run types, not just base-HR). Fetch: `get_activities_by_date(start, end, "running")`, then the type check; `duration_s` = `duration`, `avg_hr` = `averageHR` rounded (nullable: a run recorded without HR is a legitimate state; none so far). `location` and `run_type` are parsed from the name at sync time by `parse_run_name` in `sync/running.py`, so the naming rule lives in one place — strict patterns, no keyword matching: `<Location> - <Type>`, split on the first ` - ` (spaces included), location before, type after, taken as-is; `<Location> Running` (Garmin's automatic name for a run nobody renamed, e.g. `Jeddah Running`) → location, type null (a free run), so forgetting to rename one costs nothing; anything else → both null (a treadmill run might come as `Treadmill Running` and parse as location "Treadmill" — none yet; rename it if it shows up). Hyphens inside the type are kept, so `Base-HR` (custom HR-capped workout) and `Base` (Garmin's suggested workout), and likewise `Threshold-HR` and `Threshold`, are distinct types. Names are fixed at the source, in Garmin Connect, and kept consistent (`Jeddah-Threshold-HR` on 2026-10-10 was renamed to `Jeddah - Threshold-HR`); `Laganas - Base` (2026-09-07, max HR 149) stays `Base` — Garmin's default workout, only under 150 because it was cooler. Base-HR charts select `WHERE run_type = BASE_HR_RUN_TYPE` (`"Base-HR"`, in `config.py`, shared by sync and queries). Pace is derived when charting (`duration_s / distance_m`, shown as `m:ss /km`), not stored. Refresh: start at `FIRST_DATA_DATE` if empty, else same calendar day as `MAX(start_time_local)` (not +1 day, to avoid missing a second same-day activity a prior refresh only partially caught); insert-if-not-exists by `activity_id` (`store_new`, `INSERT OR IGNORE`; the sync log shows runs found vs. new). Replaced an earlier `base_hr_runs` table that kept base-HR runs only (DB rebuilt on 2026-10-23, before any hand-entered data existed). |
-| `laps` | `activity_id` (FK → `runs`, `ON DELETE CASCADE`), `lap_index`, `distance_m`, `duration_s`, `avg_hr` (all NOT NULL); PK `(activity_id, lap_index)` | Fetched once per activity via `get_activity_splits` (`lapDTOs` only, `eventDTOs` dropped). Base-HR runs only: each sync fetches laps for every stored base-HR run that has none yet (`find_runs_without_laps`) — normally just the newly stored runs, but it also backfills and retries after a failed fetch; no refresh-overlap, laps don't change after the fact. `lap_index` = Garmin's `lapIndex` (1-based). Laps without `averageHR` or `distance` are skipped. Only base-HR laps are clean 1 km auto-laps, which decoupling assumes; interval workouts (`Threshold`, `Threshold-HR`, `Sprint`) have workout-step laps (e.g. 15 laps of 20–372 m) and even easy types can have odd mid-run laps (a 46 m lap on a Recovery run). Widening to other types later is a one-condition change in `find_runs_without_laps`, which backfills without a rebuild. All laps of a base-HR run are stored, including the short final lap (typically 10–60 m). Aerobic decoupling (`queries.running.load_decoupling`), per run: take the full-km laps (`distance_m >= FULL_KM_MIN_M`, 950, which excludes that short final lap), skip the first (warm-up: HR is still catching up, 110–119 vs. 131–135 in km 2), split the rest into two halves of whole laps (an odd count drops the middle lap), and compute efficiency = speed ÷ time-weighted average HR for each half; decoupling = (first − second) / first × 100, in % (positive = less efficient in the second half). With 5 full km that is km 2–3 vs. km 4–5. Null (a gap) if fewer than 3 full-km laps. Replaces an earlier pace-fade chart (last km pace minus first km pace), whose first-km baseline mixed warm-up pacing into the value; including km 1 (km 3 split in half) gave the same trend but 2–6 points higher, varying with the warm-up |
 
 ### Strength page (2 tables)
 
 | Table | Columns | Notes |
 |---|---|---|
 | `strength_sessions` | `activity_id` (PK), `start_time_local`, `workout_id`, `session_label` (all NOT NULL) | Every activity with `activityType == "strength_training"` **and** a `workoutId` (activities from one of your Garmin Connect workouts); free sessions without one are skipped. Fetch: `get_activities_by_date(start, end)` with no type filter, then the type check — `strength_training` is a sub-type, which the endpoint rejects as a filter (400 "Activity type cannot be an activity sub type"). `session_label` = the activity name as-is (e.g. `S1 Squats`): Garmin names each session after its workout, so the name is the session group, the same idea as `run_type` from run names. Chosen over a hand-entered `workout_sessions` lookup (`workoutId` → label): every workout's 7–8 sessions so far have one `workoutId` and one matching name, and the name needs no table, no seed file and survives rebuilds, while a new workout version (new `workoutId`) with the same name just continues the group. Renaming a workout starts a new group (rename old sessions in Garmin to merge); two different workouts with one name would merge. Refresh: as for `runs` — start at `FIRST_DATA_DATE` if empty, else same calendar day as `MAX(start_time_local)`; insert-if-not-exists by `activity_id` (no 30-day re-scan floor: there is no lookup table whose late registration could make a session be skipped). |
-| `strength_sets` | `activity_id` (FK → `strength_sessions`, `ON DELETE CASCADE`), `set_index` (0-based, ACTIVE sets only), `category`, `reps` (NOT NULL), `name`, `weight_kg` (nullable); PK `(activity_id, set_index)` | Fetched once per session via `get_activity_exercise_sets`, filtered to `setType == "ACTIVE"`, taking `exercises[0]` (Garmin's top detected exercise); each sync fetches sets for every stored session that has none yet (`find_sessions_without_sets`), like laps. `weight` is in grams → kg (2 dp). `name` is nullable: Garmin sends only `category` on some sets (25 of 899: 13 pull-up, 12 crunch). `weight_kg` is nullable and stored as given: bodyweight sets come as `0`, `-0` or missing (2 sets). Charts count a missing or `-0` weight as 0 kg added. Names were made consistent at the source (see the strength page in "Pages"). |
+| `strength_sets` | `activity_id` (FK → `strength_sessions`, `ON DELETE CASCADE`), `set_index` (0-based, ACTIVE sets only), `category`, `reps` (NOT NULL), `name`, `weight_kg` (nullable); PK `(activity_id, set_index)` | Fetched once per session via `get_activity_exercise_sets`, filtered to `setType == "ACTIVE"`, taking `exercises[0]` (Garmin's top detected exercise); each sync fetches sets for every stored session that has none yet (`find_sessions_without_sets`). `weight` is in grams → kg (2 dp). `name` is nullable: Garmin sends only `category` on some sets (25 of 899: 13 pull-up, 12 crunch). `weight_kg` is nullable and stored as given: bodyweight sets come as `0`, `-0` or missing (2 sets). Charts count a missing or `-0` weight as 0 kg added. Names were made consistent at the source (see the strength page in "Pages"). |
 
 ## Code structure
 
@@ -287,7 +290,7 @@ All paths below are inside `fitness/`.
   - `daily.py` — the six fitness-page tables, `find_daily_start_date`, and
     the per-endpoint range limits (`RESTING_HR_MAX_DAYS`,
     `HRV_MAX_DAYS`).
-  - `running.py` — `runs` and `laps`.
+  - `running.py` — `runs`.
   - `strength.py` — `strength_sessions` and `strength_sets`.
 
   Fully self-contained: opens its own connection, commits, and closes it
@@ -306,11 +309,7 @@ All paths below are inside `fitness/`.
     `list_days_in_range` (fill dense tables), and for the activity tables
     `find_activity_start_date(conn, table)` (refresh start: day of the latest
     `start_time_local`) and `store_new(conn, table, columns, rows)`
-    (writes new activity rows; runs, laps, strength sessions and sets).
-    The "fetch details for activities that have none yet" step
-    (`find_runs_without_laps`/`sync_laps`, `find_sessions_without_sets`/`sync_sets`)
-    is similar in two places but not extracted — the API calls differ;
-    revisit if a third appears. Fetch and parse stay per-table —
+    (writes new activity rows; runs, strength sessions and sets). Fetch and parse stay per-table —
     they differ in endpoint and response shape — and so does each
     `sync_<table>`, which shows that table's specifics.
   - Storing: daily rows are written as insert-or-update
@@ -324,12 +323,27 @@ All paths below are inside `fitness/`.
   the Sync button and flash messages) with a `{% block content %}`; one template per page (`fitness.html`,
   `running.html`, `strength.html`) extends it. Templates contain no
   inline JS or CSS.
-- Static files: `static/style.css` holds all styling. One JS file per
+- Static files: `static/style.css` holds all styling. Layout: the page
+  is capped at 1400 px (was 960, which left a laptop screen mostly
+  margin). Fitness and running charts sit in `.chart-grid
+  .chart-grid-large` (`auto-fill`, `minmax(min(480px, 100%), 1fr)`): 2
+  per row on a laptop, 1 on a phone; each grid item is the `<h2>` plus
+  its chart. Fitness charts are ordered in related pairs: VO2max |
+  ACWR, resting HR | HRV, weight | sleep shortfall. The strength page's
+  280 px `.chart-grid` gets 4 columns at full width (3 before the cap
+  was raised). Below 600 px wide (phones) `.chart` is 400 px tall
+  instead of 320, so legend rows don't squeeze the plot; the strength
+  page's `.chart-small` keeps 220 px. One JS file per
   page (`static/fitness.js`, `static/running.js`, `static/strength.js`),
   loaded at the end of that page's template, plus `static/charts.js`
   with helpers shared by every page, loaded from `base.html` after
   Chart.js; and `static/sync.js` for the nav's Sync button, loaded at the
   end of `base.html`. `charts.js` holds:
+  - Compact legends for every chart (`Chart.defaults`: 12 px boxes,
+    11 px font), so the HRV and metres-per-heartbeat legends take 2
+    rows on a phone instead of 3 and 2 taller ones. Square boxes kept
+    rather than `usePointStyle`, so HRV's dashed LOW-limit entry stays
+    dashed.
   - `buildDailyScales(yTitle)` — real-date x-axis, titled y-axis.
   - `plotDailyLineChart(canvasId, label, yTitle, plugins)` — single-series
     line chart (nulls as gaps), optional Chart.js plugins.
@@ -397,7 +411,7 @@ All paths below are inside `fitness/`.
 
 - Built as vertical slices, one table at a time: fetch → insert → plot,
   fully working end to end before moving to the next table. Not building
-  broadly across all 10 tables or all 3 pages at once.
+  broadly across all tables or all 3 pages at once.
 - First slice: `vo2max` — the simplest table (one API call, one value
   column, a single insert-or-update, a plain line chart), chosen specifically to
   prove the whole pipeline (auth, `db.py`, insert, route, chart) with
@@ -417,8 +431,8 @@ All paths below are inside `fitness/`.
      `run_type`/`location` parsed from the name, and the all-runs
      metres-per-heartbeat chart (replacing the planned pace-vs-HR
      scatter);
-  4. done — `laps` sync + aerobic-decoupling chart (replaced the
-     first pace-fade chart).
+  4. done, then dropped (2026-10-26) — `laps` sync + aerobic-decoupling
+     chart (replaced the first pace-fade chart; see "Pages").
 
   Strength page: `strength_sessions` + `strength_sets` sync done (DB
   rebuilt on 2026-10-24, and again after the exercise names were fixed

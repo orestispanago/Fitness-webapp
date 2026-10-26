@@ -1,6 +1,6 @@
 body {
   font-family: sans-serif;
-  max-width: 960px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 0 16px;
 }
@@ -39,11 +39,23 @@ nav a {
   margin-bottom: 32px;
 }
 
-/* Small per-exercise charts, as many per row as fit */
+/* Taller on phones, so legend rows don't squeeze the plot */
+@media (max-width: 600px) {
+  .chart {
+    height: 400px;
+  }
+}
+
+/* Charts in a grid, as many per row as fit (strength: small per-exercise charts) */
 .chart-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 0 24px;
+}
+
+/* Fitness and running charts: 2 per row on laptops, 1 on phones */
+.chart-grid-large {
+  grid-template-columns: repeat(auto-fill, minmax(min(480px, 100%), 1fr));
 }
 
 .chart-small {

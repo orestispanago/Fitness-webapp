@@ -1,6 +1,5 @@
 from datetime import date
 
-from fitness.config import BASE_HR_RUN_TYPE
 from fitness.sync.common import find_activity_start_date, store_new
 
 # Garmin's automatic name for a run nobody renamed: "<Location> Running"
@@ -77,61 +76,5 @@ def sync_runs(conn, client):
     print(f"runs: {len(rows)} found, {new_count} new ({start} to {end})")
 
 
-# laps
-
-
-def find_runs_without_laps(conn):
-    """Base-HR runs whose laps haven't been fetched yet (normally new ones)."""
-    # Only base-HR laps are km splits that the charts use (see SPEC.md)
-    rows = conn.execute(
-        "SELECT activity_id FROM runs"
-        " WHERE run_type = ?"
-        " AND activity_id NOT IN (SELECT activity_id FROM laps)"
-        " ORDER BY start_time_local",
-        (BASE_HR_RUN_TYPE,),
-    ).fetchall()
-    activity_ids = []
-    for row in rows:
-        activity_ids.append(row[0])
-    return activity_ids
-
-
-def parse_laps(activity_id, splits):
-    rows = []
-    for lap in splits.get("lapDTOs") or []:
-        avg_hr = lap.get("averageHR")
-        if avg_hr is None or lap.get("distance") is None:
-            continue
-        rows.append(
-            (
-                activity_id,
-                lap["lapIndex"],
-                lap["distance"],
-                lap["duration"],
-                round(avg_hr),
-            )
-        )
-    return rows
-
-
-def sync_laps(conn, client):
-    # Laps don't change after a run, so each run's laps are fetched once
-    activity_ids = find_runs_without_laps(conn)
-    columns = [
-        "activity_id",
-        "lap_index",
-        "distance_m",
-        "duration_s",
-        "avg_hr",
-    ]
-    new_count = 0
-    for activity_id in activity_ids:
-        splits = client.get_activity_splits(activity_id)
-        rows = parse_laps(activity_id, splits)
-        new_count += store_new(conn, "laps", columns, rows)
-    print(f"laps: {new_count} new for {len(activity_ids)} runs")
-
-
 def sync_all(conn, client):
     sync_runs(conn, client)
-    sync_laps(conn, client)

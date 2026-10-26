@@ -1,7 +1,7 @@
 from datetime import date
 
 from fitness.config import FIRST_DATA_DATE
-from fitness.sync.common import split_date_windows, list_days_in_range
+from fitness.sync.common import list_days_in_range, split_date_windows
 
 # get_rhr_daily is documented as covering "up to ~1 year" per request
 RESTING_HR_MAX_DAYS = 365
