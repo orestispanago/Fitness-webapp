@@ -1,11 +1,39 @@
-from flask import Flask, redirect, render_template, request, url_for
+import hmac
+
+from flask import Flask, Response, redirect, render_template, request, url_for
 
 from fitness import db
+from fitness.config import APP_PASSWORD, APP_USER
 from fitness.queries import daily, running, strength
 from fitness.sync import main as run_sync
 
 app = Flask(__name__)
 db.init_app(app)
+
+
+def is_authorized(auth):
+    # Missing APP_USER/APP_PASSWORD denies everyone rather than opening the app.
+    authorized = False
+    if auth is not None and auth.type == "basic" and APP_USER and APP_PASSWORD:
+        user_matches = hmac.compare_digest(
+            auth.username.encode(), APP_USER.encode()
+        )
+        password_matches = hmac.compare_digest(
+            auth.password.encode(), APP_PASSWORD.encode()
+        )
+        if user_matches and password_matches:
+            authorized = True
+    return authorized
+
+
+@app.before_request
+def require_login():
+    response = None
+    if not is_authorized(request.authorization):
+        response = Response(
+            "Login required", 401, {"WWW-Authenticate": 'Basic realm="Fitness"'}
+        )
+    return response
 
 
 def is_local_path(path):

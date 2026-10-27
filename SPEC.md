@@ -81,7 +81,6 @@ All three pages show full history only — no date range picker.
 - Database migrations / ORM — `fitness/schema.sql` is a one-time,
   idempotent initializer; schema changes are hand-edited directly in that
   file.
-- LAN access — localhost-only for now, LAN is a later phase.
 
 ## Tech stack
 
@@ -89,7 +88,7 @@ All three pages show full history only — no date range picker.
 - Charts: Chart.js via CDN, hover tooltips only, no zoom/pan. Date axes
   use Chart.js's `time` scale (with `chartjs-adapter-date-fns`, also via
   CDN) so sparse series are spaced by real dates, not evenly.
-- Storage: SQLite (`fitness.db` at the project root, gitignored),
+- Storage: SQLite (`data/fitness.db`, gitignored),
   accessed via raw SQL (stdlib `sqlite3`) — no ORM.
 - Styling: bare-bones HTML/CSS, in `fitness/static/style.css`.
 
@@ -133,6 +132,48 @@ authenticated session and token cache (own token path, not
 - Open decision, deferred: whether to show "current status" summaries
   (e.g. the latest ACWR status and ratio as a text flag above the chart).
   Tried and removed for now; the data is already in `training_load`.
+
+## Deployment
+
+Set up 2026-10-27: a Docker container on the home
+Raspberry Pi 4 (`aarch64`), served at `fitness.oplab.uk` through the
+existing remotely managed Cloudflare Tunnel (`cloudflared` as a systemd
+service on the host).
+
+- Login: HTTP basic auth, checked in a Flask `before_request` hook
+  against credentials from `.env`. Chosen on 2026-10-27 over Cloudflare
+  Access (no code, but harder to hand a link + credentials to a friend)
+  and a Flask login page (most code, needs sessions and a `secret_key`).
+  One shared pair, `APP_USER` / `APP_PASSWORD` (chosen over a separate
+  guest pair, 2026-10-27): to revoke a guest, change the password.
+  If either is unset, every request gets 401 (fails closed).
+- Persistent state: `fitness.db` and `.token/` move into a gitignored
+  `data/` folder at the project root, on the laptop and in the
+  container alike; the container mounts `/mnt/ssd/fitness` there.
+  Chosen on 2026-10-27 over mounting the file and token dir at their
+  old paths (a single-file SQLite mount leaves the journal outside the
+  mount) and a `DATA_DIR` setting (one more knob).
+- DB setup: the container's start command runs `python -m
+  fitness.init_db` before gunicorn on every start (idempotent), so the
+  Pi needs no manual step. Chosen on 2026-10-27 over a manual `init_db`
+  on the Pi and an `ensure_schema()` in app/sync code; the laptop
+  keeps the manual command, and the open decision in "Refresh
+  behavior" stays open for it.
+- Server: gunicorn, one process with `--threads 4` (gthread), so pages
+  keep loading during a sync and the blocking `/sync` request isn't
+  killed by the worker timeout (a sync takes a few seconds). Two
+  overlapping syncs can fail with "database is locked"; accepted, as a
+  failed sync writes nothing. `--no-control-socket`: gunicorn 26's
+  control socket isn't used, and user 1000 has no home dir to put it in. Chosen on 2026-10-27 over one plain
+  worker with a long timeout and multiple worker processes.
+- Delivery: `~/fitness` on the Pi is a clone of the public GitHub repo,
+  with `Dockerfile` and `docker-compose.yml` in the repo; deploy with
+  `git pull && docker compose up -d --build` (native ARM build on the
+  Pi). Chosen on 2026-10-27 over building/pushing an image to a
+  registry by hand or from GitHub Actions.
+- Container: port 5000 published on `127.0.0.1` only (reached via the
+  tunnel); `/etc/localtime` mounted read-only, since sync uses
+  `date.today()` and the container would otherwise run on UTC.
 
 ## Database schema
 
@@ -234,8 +275,10 @@ tooltip names every run.
 
 Layout: a single `fitness/` package holds all code, `schema.sql`,
 `templates/` and `static/`. The project root keeps only docs
-(`SPEC.md`, `CLAUDE.md`), `requirements.txt`, and gitignored local state
-(`.env`, `.token/`, `fitness.db`, `.venv/`). No `src/` layout and no
+(`SPEC.md`, `CLAUDE.md`), `requirements.txt`, the container files
+(`Dockerfile`, `.dockerignore`, `docker-compose.yml`, see "Deployment"),
+and gitignored local state (`.env`, `data/` holding `fitness.db` and
+`.token/`, `.venv/`). No `src/` layout and no
 `pyproject.toml` — the app isn't installed or distributed. Modules use
 absolute imports (`from fitness.config import DB_PATH`) and are run from
 the project root: `python -m fitness.init_db`, `python -m fitness.sync`,

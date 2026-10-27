@@ -1,0 +1,11 @@
+services:
+  fitness:
+    build: .
+    user: 1000:1000
+    ports:
+      - "127.0.0.1:5000:5000"
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - /mnt/ssd/fitness:/app/data
+      - /etc/localtime:/etc/localtime:ro

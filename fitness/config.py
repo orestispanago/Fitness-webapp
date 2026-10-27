@@ -8,8 +8,11 @@ load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
 EMAIL = os.getenv("EMAIL")
 PASSWORD = os.getenv("PASSWORD")
-TOKEN_PATH = os.path.join(PROJECT_ROOT, ".token")
-DB_PATH = os.path.join(PROJECT_ROOT, "fitness.db")
+APP_USER = os.getenv("APP_USER")
+APP_PASSWORD = os.getenv("APP_PASSWORD")
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+TOKEN_PATH = os.path.join(DATA_DIR, ".token")
+DB_PATH = os.path.join(DATA_DIR, "fitness.db")
 SCHEMA_PATH = os.path.join(PACKAGE_DIR, "schema.sql")
 
 FIRST_DATA_DATE = "2026-06-28"

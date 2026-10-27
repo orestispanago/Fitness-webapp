@@ -25,9 +25,13 @@ Create a `.env` file in the project root with your Garmin Connect credentials:
 ```plaintext
 EMAIL=you@example.com
 PASSWORD=your-password
+APP_USER=choose-a-username
+APP_PASSWORD=choose-a-password
 ```
 
-After the first login, session tokens are cached in `.token/` so later runs don't need to log in again.
+`APP_USER` / `APP_PASSWORD` are the app's own login (HTTP basic auth); without them every page answers 401.
+
+The database and Garmin session tokens live in `data/` (`data/fitness.db`, `data/.token/`), so later runs don't need to log in again.
 
 ## Usage
 
@@ -41,6 +45,16 @@ Run from the project root:
 ```
 
 Re-run `sync` whenever you want fresh data. It only fetches what's new.
+
+## Docker
+
+`docker-compose.yml` runs the app with gunicorn on `127.0.0.1:5000`, with `data/` mounted from `/mnt/ssd/fitness` and settings from `.env`:
+
+```bash
+docker compose up -d --build
+```
+
+The container creates the database on start. See "Deployment" in [SPEC.md](SPEC.md).
 
 ## Disclaimer
 

@@ -49,8 +49,12 @@ Personal, single-user Flask + SQLite app that charts Garmin Connect data.
 - Create/update the DB schema: `.venv/bin/python -m fitness.init_db`
   (idempotent; run once, and again after editing `fitness/schema.sql`).
 - Sync data from Garmin: `.venv/bin/python -m fitness.sync` (manual for
-  now). It fails if `fitness.db` doesn't exist yet — run `init_db` first.
+  now). It fails if `data/fitness.db` doesn't exist yet — run `init_db`
+  first.
 - Run the app: `.venv/bin/flask --app fitness.app run` (localhost only).
+  Every request needs basic auth with `APP_USER` / `APP_PASSWORD` from
+  `.env`; without them the app answers 401 to everything.
+- Deployed on a Raspberry Pi with Docker; see "Deployment" in `SPEC.md`.
 - After adding a dependency, regenerate `requirements.txt` with
   `.venv/bin/pip freeze > requirements.txt`.
 - Testing is manual: run the app and check the chart in a browser.
@@ -58,6 +62,6 @@ Personal, single-user Flask + SQLite app that charts Garmin Connect data.
 ## Secrets and data
 
 - Never commit, print or paste the contents of `.env` (Garmin credentials)
-  or `.token/` (Garmin session tokens). Both are gitignored.
-- `fitness.db` and raw Garmin API dumps contain personal data — keep them
+  or `data/.token/` (Garmin session tokens). Both are gitignored.
+- `data/fitness.db` and raw Garmin API dumps contain personal data — keep them
   out of the repo.
