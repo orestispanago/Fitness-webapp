@@ -7,5 +7,5 @@ services:
     restart: unless-stopped
     env_file: .env
     volumes:
-      - /mnt/ssd/fitness:/app/data
+      - ./data:/app/data
       - /etc/localtime:/etc/localtime:ro

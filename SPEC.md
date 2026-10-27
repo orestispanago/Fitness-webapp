@@ -149,10 +149,13 @@ service on the host).
   If either is unset, every request gets 401 (fails closed).
 - Persistent state: `fitness.db` and `.token/` move into a gitignored
   `data/` folder at the project root, on the laptop and in the
-  container alike; the container mounts `/mnt/ssd/fitness` there.
-  Chosen on 2026-10-27 over mounting the file and token dir at their
-  old paths (a single-file SQLite mount leaves the journal outside the
-  mount) and a `DATA_DIR` setting (one more knob).
+  container alike; on the Pi, compose mounts the clone's own `./data`
+  (create it as `pi` before the first `up`, or Docker creates it
+  root-owned and user 1000 can't write). Chosen on 2026-10-27 over
+  mounting the file and token dir at their old paths (a single-file
+  SQLite mount leaves the journal outside the mount) and a `DATA_DIR`
+  setting (one more knob); `./data` chosen over `/mnt/ssd/fitness`
+  (same layout as the laptop, no dependency on the SSD being mounted).
 - DB setup: the container's start command runs `python -m
   fitness.init_db` before gunicorn on every start (idempotent), so the
   Pi needs no manual step. Chosen on 2026-10-27 over a manual `init_db`
@@ -166,7 +169,7 @@ service on the host).
   failed sync writes nothing. `--no-control-socket`: gunicorn 26's
   control socket isn't used, and user 1000 has no home dir to put it in. Chosen on 2026-10-27 over one plain
   worker with a long timeout and multiple worker processes.
-- Delivery: `~/fitness` on the Pi is a clone of the public GitHub repo,
+- Delivery: `~/Fitness-webapp` on the Pi is a clone of the public GitHub repo,
   with `Dockerfile` and `docker-compose.yml` in the repo; deploy with
   `git pull && docker compose up -d --build` (native ARM build on the
   Pi). Chosen on 2026-10-27 over building/pushing an image to a

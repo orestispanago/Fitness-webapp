@@ -48,7 +48,7 @@ Re-run `sync` whenever you want fresh data. It only fetches what's new.
 
 ## Docker
 
-`docker-compose.yml` runs the app with gunicorn on `127.0.0.1:5000`, with `data/` mounted from `/mnt/ssd/fitness` and settings from `.env`:
+`docker-compose.yml` runs the app with gunicorn on `127.0.0.1:5000`, with `./data` mounted as its `data/` and settings from `.env`. Create `data/` as your own user (UID 1000) before the first start, or Docker creates it owned by root:
 
 ```bash
 docker compose up -d --build
