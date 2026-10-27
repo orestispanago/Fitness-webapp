@@ -1,15 +1,10 @@
-import os
-from datetime import datetime
-
-from flask import Flask, flash, redirect, render_template, request, url_for
+from flask import Flask, redirect, render_template, request, url_for
 
 from fitness import db
 from fitness.queries import daily, running, strength
 from fitness.sync import main as run_sync
 
 app = Flask(__name__)
-# Only signs flash messages, so a new key per start is fine (see SPEC.md)
-app.secret_key = os.urandom(24)
 db.init_app(app)
 
 
@@ -73,12 +68,7 @@ def strength_page():
 
 @app.route("/sync", methods=["POST"])
 def sync():
-    try:
-        run_sync()
-        flash(f"Synced at {datetime.now():%H:%M}", "success")
-    except Exception as error:
-        app.logger.exception("Sync failed")
-        flash(f"Sync failed: {error}", "error")
+    run_sync()
     target = request.form.get("next", "")
     if not is_local_path(target):
         target = url_for("index")

@@ -18,19 +18,25 @@ nav a {
   margin-left: auto;
 }
 
-.flash {
-  padding: 8px 12px;
+/* Outlined in the charts' series blue (SERIES_BLUE in charts.js) */
+.sync-form button {
+  font: inherit;
+  font-size: 0.9em;
+  padding: 4px 14px;
+  border: 1px solid rgb(54, 162, 235);
   border-radius: 4px;
+  background: #fff;
+  color: rgb(54, 162, 235);
+  cursor: pointer;
 }
 
-.flash-success {
-  background: #e6f4ea;
-  color: #1e5631;
+.sync-form button:hover:enabled {
+  background: rgba(54, 162, 235, 0.1);
 }
 
-.flash-error {
-  background: #fdecea;
-  color: #8a1c1c;
+.sync-form button:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .chart {

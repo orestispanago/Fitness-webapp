@@ -97,8 +97,9 @@ authenticated session and token cache (own token path, not
 
 ## Refresh behavior
 
-- A Sync button at the right end of the nav (in `base.html`, so on every
-  page) runs the same `fitness.sync.main()` as the CLI, which still
+- A Sync button (`↻ Sync`, outlined in the charts' series blue, light
+  blue fill on hover, faded while syncing) at the right end of the nav
+  (in `base.html`, so on every page) runs the same `fitness.sync.main()` as the CLI, which still
   works. Added 2026-10-26.
   - It is a `<form method="post">` to `/sync` (POST, not a GET link: a
     sync writes data, and a GET could be prefetched, reopened from
@@ -110,16 +111,12 @@ authenticated session and token cache (own token path, not
     (loaded at the end of `base.html`) disables the button and shows
     "Syncing…" on submit, so a second click can't start a second Garmin
     login and fetch.
-  - Feedback is a Flask flash message, shown as a full-width bar between
-    the nav and the page content: `Synced at HH:MM` (category
-    `success`, green) or `Sync failed: <error>` (category `error`, red);
-    `.flash`, `.flash-success`, `.flash-error` in `style.css`. The route
-    catches any `Exception`, not only Garmin's, so every failure lands
-    back on the page; the full traceback goes to the terminal via
-    `app.logger.exception`. No per-table counts in the message — those
-    stay in the terminal output (`print` in `sync/`).
-  - Flashes need `app.secret_key`; it is `os.urandom(24)`, new on each
-    start, since the session holds nothing but flash messages.
+  - No message on the page. A successful sync just reloads the page; a
+    failed one isn't caught, so Flask shows its 500 page (traceback in
+    the terminal), like the CLI raising. Chosen on 2026-10-26 over flash
+    messages (a bar, then a toast, were built or mocked up) as not worth
+    the code: no `flash`, no `secret_key`. Per-table counts stay in the
+    terminal output (`print` in `sync/`).
 - On failure the last-good data stays: `main()` commits once at the end,
   so a failed sync writes nothing.
 - Open decision, deferred until the app is finalized: whether DB setup
@@ -320,7 +317,7 @@ All paths below are inside `fitness/`.
     yet, use `store_new` (`INSERT OR IGNORE`).
 - Templates: `base.html` holds the shared skeleton (doctype, head, the
   stylesheet link, the Chart.js CDN scripts, nav between the pages,
-  the Sync button and flash messages) with a `{% block content %}`; one template per page (`fitness.html`,
+  the Sync button) with a `{% block content %}`; one template per page (`fitness.html`,
   `running.html`, `strength.html`) extends it. Templates contain no
   inline JS or CSS.
 - Static files: `static/style.css` holds all styling. Layout: the page
