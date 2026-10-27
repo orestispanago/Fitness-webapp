@@ -29,7 +29,11 @@ charts, built incrementally, one vertical slice at a time.
   slice, then the rest): one small chart per exercise in that group, x = session date,
   a line for the average weight across that exercise's sets in the
   session and a shaded band from the lightest to the heaviest set (the
-  band's top is the heaviest set). Line and band take the session group's colour
+  band's top is the heaviest set), plus a dashed line across the chart
+  at the last session's heaviest set, so earlier sessions read against
+  where you are now (`createLatestMaxPlugin`; chosen over a dot on that
+  point, the number in the title or drawn on the chart, 2026-10-27).
+  Line and band take the session group's colour
   (`SESSION_COLORS` in `strength.js`, in group order: S1 blue, S2 orange,
   S3 green, S4 purple, then yellow and pink; any further group grey, not
   a repeated colour), chosen over one colour for all, an accent on each
@@ -325,8 +329,8 @@ All paths below are inside `fitness/`.
   margin). Fitness and running charts sit in `.chart-grid
   .chart-grid-large` (`auto-fill`, `minmax(min(480px, 100%), 1fr)`): 2
   per row on a laptop, 1 on a phone; each grid item is the `<h2>` plus
-  its chart. Fitness charts are ordered in related pairs: VO2max |
-  ACWR, resting HR | HRV, weight | sleep shortfall. The strength page's
+  its chart. Fitness charts are ordered in related pairs: sleep
+  shortfall | weight, VO2max | ACWR, resting HR | HRV. The strength page's
   280 px `.chart-grid` gets 4 columns at full width (3 before the cap
   was raised). Below 600 px wide (phones) `.chart` is 400 px tall
   instead of 320, so legend rows don't squeeze the plot; the strength

@@ -30,15 +30,40 @@ function buildTrendSeries(points, key) {
 
 function formatTrendTooltip(context) {
   const point = context.raw.point;
-  return `Average ${point.avg} kg (${point.min}–${point.max}) ` +
-    `over ${point.sets} sets`;
+  return [
+    `Max ${point.max} kg`,
+    `Average ${point.avg} kg`,
+    `Min ${point.min} kg`,
+  ];
+}
+
+// Chart.js plugin that draws a dashed line across the chart at kg
+function createLatestMaxPlugin(kg, color) {
+  return {
+    id: "latestMax",
+    afterDatasetsDraw(chart) {
+      const area = chart.chartArea;
+      const top = chart.scales.y.getPixelForValue(kg);
+      const ctx = chart.ctx;
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(area.left, top);
+      ctx.lineTo(area.right, top);
+      ctx.stroke();
+      ctx.restore();
+    },
+  };
 }
 
 // One exercise per chart: the average set as a line, with a band from the
-// lightest to the heaviest set behind it
+// lightest to the heaviest set behind it and a dashed line at the last
+// session's heaviest set
 function plotExerciseTrendChart(canvas) {
   const points = JSON.parse(canvas.dataset.points);
   const groupIndex = Number(canvas.dataset.group);
+  const latestMax = points[points.length - 1].max;
   return new Chart(canvas, {
     type: "line",
     data: {
@@ -82,6 +107,7 @@ function plotExerciseTrendChart(canvas) {
         },
       },
     },
+    plugins: [createLatestMaxPlugin(latestMax, getSessionColor(groupIndex, 0.8))],
   });
 }
 
