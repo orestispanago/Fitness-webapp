@@ -11,9 +11,8 @@
 <div class="chart-grid">
   {% for exercise in group.exercises %}
   <div>
-    <h3>{{ exercise.label }}</h3>
     <div class="chart chart-small">
-      <canvas class="exercise-chart" data-group='{{ group_index }}'
+      <canvas class="exercise-chart" data-title="{{ exercise.label }}" data-group='{{ group_index }}'
         data-points='{{ exercise.points | tojson }}'></canvas>
     </div>
   </div>

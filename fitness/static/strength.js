@@ -100,6 +100,7 @@ function plotExerciseTrendChart(canvas) {
       scales: buildDailyScales(),
       plugins: {
         legend: { display: false },
+        title: buildTitle(canvas),
         tooltip: {
           // Only the average line's tooltip, which shows all three values
           filter: (item) => item.datasetIndex === 2,

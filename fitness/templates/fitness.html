@@ -7,42 +7,37 @@
 
 <div class="chart-grid chart-grid-large">
   <div>
-    <h2>Sleep shortfall (min, sleep − sleep need)</h2>
     <div class="chart">
-      <canvas id="sleep-chart" data-points='{{ sleep_shortfall | tojson }}'
+      <canvas id="sleep-chart" data-title="Sleep shortfall (min)" data-points='{{ sleep_shortfall | tojson }}'
         data-average='{{ sleep_shortfall_avg | tojson }}'></canvas>
     </div>
   </div>
   <div>
-    <h2>Weight (kg)</h2>
     <div class="chart">
-      <canvas id="weight-chart" data-points='{{ weight | tojson }}' data-average='{{ weight_avg | tojson }}'></canvas>
+      <canvas id="weight-chart" data-title="Weight (kg)" data-points='{{ weight | tojson }}'
+        data-average='{{ weight_avg | tojson }}'></canvas>
     </div>
   </div>
   <div>
-    <h2>VO2max (ml/kg/min)</h2>
     <div class="chart">
-      <canvas id="vo2max-chart" data-points='{{ vo2max | tojson }}'></canvas>
+      <canvas id="vo2max-chart" data-title="VO2 max (ml/kg/min)" data-points='{{ vo2max | tojson }}'></canvas>
     </div>
   </div>
   <div>
-    <h2>Training load (ACWR, acute:chronic ratio)</h2>
     <div class="chart">
-      <canvas id="acwr-chart" data-points='{{ acwr | tojson }}'></canvas>
+      <canvas id="acwr-chart" data-title="ACWR acute:chronic ratio" data-points='{{ acwr | tojson }}'></canvas>
     </div>
   </div>
   <div>
-    <h2>Resting heart rate (bpm)</h2>
     <div class="chart">
-      <canvas id="resting-hr-chart" data-points='{{ resting_hr | tojson }}'
+      <canvas id="resting-hr-chart" data-title="Resting HR (bpm)" data-points='{{ resting_hr | tojson }}'
         data-average='{{ resting_hr_avg | tojson }}'></canvas>
     </div>
   </div>
   <div>
-    <h2>HRV (ms, overnight average)</h2>
     <div class="chart">
-      <canvas id="hrv-chart" data-points='{{ hrv | tojson }}' data-average='{{ hrv_avg | tojson }}'
-        data-baseline='{{ hrv_baseline | tojson }}'></canvas>
+      <canvas id="hrv-chart" data-title="HRV (ms, overnight average)" data-points='{{ hrv | tojson }}'
+        data-average='{{ hrv_avg | tojson }}' data-baseline='{{ hrv_baseline | tojson }}'></canvas>
     </div>
   </div>
 </div>

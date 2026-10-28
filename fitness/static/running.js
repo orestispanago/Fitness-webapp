@@ -24,6 +24,7 @@ function plotPaceChart() {
       scales: scales,
       plugins: {
         legend: { display: false },
+        title: buildTitle(canvas),
         tooltip: {
           callbacks: {
             label: (context) => `Pace: ${formatPace(context.parsed.y)} /km`,
@@ -170,6 +171,7 @@ function plotMetresPerBeatChart() {
       maintainAspectRatio: false,
       scales: buildDailyScales(),
       plugins: {
+        title: buildTitle(canvas),
         legend: {
           labels: {
             usePointStyle: true,

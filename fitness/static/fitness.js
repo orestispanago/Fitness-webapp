@@ -222,6 +222,7 @@ function plotSleepChart() {
       plugins: {
         legend: { display: false },
         tooltip: { callbacks: { label: formatShortfallTooltip } },
+        title: buildTitle(canvas)
       },
     },
   });

@@ -29,6 +29,16 @@ function getSeriesBlue(alpha = 1) {
 
 const SERIES_BLUE = getSeriesBlue();
 
+// Chart titles, left-aligned like the headings they replace
+Chart.defaults.plugins.title.align = "start";
+Chart.defaults.plugins.title.font = { size: 14, weight: "bold" };
+Chart.defaults.plugins.title.padding = { top: 0, bottom: 6 };
+
+function buildTitle(canvas) {
+  return { display: true, text: canvas.dataset.title };
+}
+
+
 // Compact legends for every chart, so they wrap less on narrow screens
 Chart.defaults.plugins.legend.labels.boxWidth = 12;
 Chart.defaults.plugins.legend.labels.font = { size: 11 };
@@ -193,6 +203,9 @@ function plotDailyAverageChart(canvasId, label, plugins = []) {
       maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
       scales: buildDailyScales(),
+      plugins: {
+        title: buildTitle(canvas),
+      }
     },
     plugins: plugins,
   });
@@ -236,7 +249,7 @@ function plotDailyLineChart(canvasId, label, plugins = []) {
       // Tooltip for the hovered date anywhere on the chart, not only on a point
       interaction: { mode: "index", intersect: false },
       scales: buildDailyScales(),
-      plugins: { legend: { display: false } },
+      plugins: { legend: { display: false }, title: buildTitle(canvas) },
     },
     plugins: plugins,
   });
