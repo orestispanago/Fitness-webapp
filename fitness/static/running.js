@@ -8,7 +8,7 @@ function formatPace(secondsPerKm) {
 
 function plotPaceChart() {
   const canvas = document.getElementById("pace-chart");
-  const scales = buildDailyScales("min/km");
+  const scales = buildDailyScales();
   scales.y.ticks = { callback: (value) => formatPace(value) };
   return new Chart(canvas, {
     type: "line",
@@ -168,7 +168,7 @@ function plotMetresPerBeatChart() {
     data: { datasets: datasets },
     options: {
       maintainAspectRatio: false,
-      scales: buildDailyScales("metres per heartbeat"),
+      scales: buildDailyScales(),
       plugins: {
         legend: {
           labels: {

@@ -33,11 +33,12 @@ const SERIES_BLUE = getSeriesBlue();
 Chart.defaults.plugins.legend.labels.boxWidth = 12;
 Chart.defaults.plugins.legend.labels.font = { size: 11 };
 
-// Shared axes for charts of daily values: real-date x-axis, titled y-axis.
-function buildDailyScales(yTitle) {
+// Shared axes for charts of daily values: real-date x-axis, untitled
+// y-axis (units are in the page headings).
+function buildDailyScales() {
   return {
     x: { type: "time", time: { unit: "month", tooltipFormat: "MMM d, yyyy" } },
-    y: { title: { display: true, text: yTitle } },
+    y: {},
   };
 }
 
@@ -144,9 +145,33 @@ function createMarkersPlugin(markers) {
   };
 }
 
+// Chart.js plugin that draws a vertical line at the tooltip's point, so a
+// tap or hover shows where it is on the x-axis; registered for every chart.
+const CROSSHAIR_PLUGIN = {
+  id: "crosshair",
+  afterDatasetsDraw(chart) {
+    const active = chart.tooltip.getActiveElements();
+    if (active.length > 0) {
+      const area = chart.chartArea;
+      const left = active[0].element.x;
+      const ctx = chart.ctx;
+      ctx.save();
+      ctx.strokeStyle = GREYS.guide;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(left, area.top);
+      ctx.lineTo(left, area.bottom);
+      ctx.stroke();
+      ctx.restore();
+    }
+  },
+};
+
+Chart.register(CROSSHAIR_PLUGIN);
+
 // Daily values as dots (no line) plus their 7-day rolling average as a
 // line; read from the canvas's data-points and data-average attributes.
-function plotDailyAverageChart(canvasId, label, yTitle, plugins = []) {
+function plotDailyAverageChart(canvasId, label, plugins = []) {
   const canvas = document.getElementById(canvasId);
   return new Chart(canvas, {
     type: "line",
@@ -167,7 +192,7 @@ function plotDailyAverageChart(canvasId, label, yTitle, plugins = []) {
     options: {
       maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
-      scales: buildDailyScales(yTitle),
+      scales: buildDailyScales(),
     },
     plugins: plugins,
   });
@@ -196,7 +221,7 @@ function highlightPoints(chart, band, color) {
 // Line chart of one daily series; points come from the canvas's
 // data-points attribute. Null values are drawn as gaps. Optional
 // plugins (e.g. createBandsPlugin) are passed through to Chart.js.
-function plotDailyLineChart(canvasId, label, yTitle, plugins = []) {
+function plotDailyLineChart(canvasId, label, plugins = []) {
   const canvas = document.getElementById(canvasId);
   return new Chart(canvas, {
     type: "line",
@@ -210,7 +235,7 @@ function plotDailyLineChart(canvasId, label, yTitle, plugins = []) {
       maintainAspectRatio: false,
       // Tooltip for the hovered date anywhere on the chart, not only on a point
       interaction: { mode: "index", intersect: false },
-      scales: buildDailyScales(yTitle),
+      scales: buildDailyScales(),
       plugins: { legend: { display: false } },
     },
     plugins: plugins,

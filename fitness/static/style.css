@@ -45,10 +45,17 @@ nav a {
   margin-bottom: 32px;
 }
 
-/* Taller on phones, so legend rows don't squeeze the plot */
+/* Shorter on phones, so a chart doesn't fill the screen; smaller headings
+   and gaps, like the Garmin app */
 @media (max-width: 600px) {
   .chart {
-    height: 400px;
+    height: 200px;
+    margin-bottom: 16px;
+  }
+
+  .chart-grid-large h2 {
+    font-size: 1em;
+    margin: 8px 0 4px;
   }
 }
 

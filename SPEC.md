@@ -378,8 +378,14 @@ All paths below are inside `fitness/`.
   its chart. Fitness charts are ordered in related pairs: sleep
   shortfall | weight, VO2max | ACWR, resting HR | HRV. The strength page's
   280 px `.chart-grid` gets 4 columns at full width (3 before the cap
-  was raised). Below 600 px wide (phones) `.chart` is 400 px tall
-  instead of 320, so legend rows don't squeeze the plot; the strength
+  was raised). Below 600 px wide (phones) `.chart` is 200 px tall
+  instead of 320 (was 400, then 280: still too tall; 200 is about the
+  height of the Garmin app's phone charts). Also on phones, like the
+  Garmin app: fitness and running `<h2>`s shrink to 1em with 8 px / 4 px
+  margins (the strength page's `h3` style; browser default was ~70 px a
+  heading) and the gap below each chart is 16 px instead of 32. Fixed px
+  rather than an aspect ratio: legends take a fixed height, so a ratio
+  leaves the legend charts the least plot on narrow phones. The strength
   page's `.chart-small` keeps 220 px. One JS file per
   page (`static/fitness.js`, `static/running.js`, `static/strength.js`),
   loaded at the end of that page's template, plus `static/charts.js`
@@ -391,8 +397,10 @@ All paths below are inside `fitness/`.
     rows on a phone instead of 3 and 2 taller ones. Square boxes kept
     rather than `usePointStyle`, so HRV's dashed LOW-limit entry stays
     dashed.
-  - `buildDailyScales(yTitle)` — real-date x-axis, titled y-axis.
-  - `plotDailyLineChart(canvasId, label, yTitle, plugins)` — single-series
+  - `buildDailyScales()` — real-date x-axis, untitled y-axis (no y-axis
+    titles, to give phones more plot width; units go in the page's
+    `<h2>` headings, e.g. "Weight (kg)").
+  - `plotDailyLineChart(canvasId, label, plugins)` — single-series
     line chart (nulls as gaps), optional Chart.js plugins.
   - `STATUS_COLORS` / `getStatusColor(name, alpha)` — the one set of status
     colours (green, yellow, orange, red, blue) for bands, highlighted
@@ -415,7 +423,7 @@ All paths below are inside `fitness/`.
   - `SERIES_BLUE` — Chart.js's default 1st-series blue, for series that
     set their colour explicitly (the sleep average, the `Base-HR` run
     type), so base-HR runs are the same blue on every running chart.
-  - `plotDailyAverageChart(canvasId, label, yTitle, plugins)` — daily
+  - `plotDailyAverageChart(canvasId, label, plugins)` — daily
     dots plus a 7-day average line, read from `data-points` and
     `data-average`.
   - `createBandsPlugin(bands)` — shades labelled horizontal ranges behind the
@@ -428,6 +436,10 @@ All paths below are inside `fitness/`.
     (`WEIGHT_MARKERS` in `fitness.js`: creatine 5 g/day from
     2026-10-07), like `ACWR_BANDS`; move them to a table only if they
     multiply or are needed on several charts.
+  - `CROSSHAIR_PLUGIN` — a thin solid `GREYS.guide` vertical line at the
+    tooltip's point, so a tap (on a phone) or hover shows where it is on
+    the x-axis. Registered once with `Chart.register`, so every chart
+    gets it, the strength and metres-per-heartbeat charts included.
 
   All date charts use `interaction: { mode: "index", intersect: false }`,
   so hovering anywhere shows the tooltip for the nearest date. Charts

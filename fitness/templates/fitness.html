@@ -7,39 +7,39 @@
 
 <div class="chart-grid chart-grid-large">
   <div>
-    <h2>Sleep shortfall (sleep − sleep need)</h2>
+    <h2>Sleep shortfall (min, sleep − sleep need)</h2>
     <div class="chart">
       <canvas id="sleep-chart" data-points='{{ sleep_shortfall | tojson }}'
         data-average='{{ sleep_shortfall_avg | tojson }}'></canvas>
     </div>
   </div>
   <div>
-    <h2>Weight</h2>
+    <h2>Weight (kg)</h2>
     <div class="chart">
       <canvas id="weight-chart" data-points='{{ weight | tojson }}' data-average='{{ weight_avg | tojson }}'></canvas>
     </div>
   </div>
   <div>
-    <h2>VO2max</h2>
+    <h2>VO2max (ml/kg/min)</h2>
     <div class="chart">
       <canvas id="vo2max-chart" data-points='{{ vo2max | tojson }}'></canvas>
     </div>
   </div>
   <div>
-    <h2>Training load (ACWR)</h2>
+    <h2>Training load (ACWR, acute:chronic ratio)</h2>
     <div class="chart">
       <canvas id="acwr-chart" data-points='{{ acwr | tojson }}'></canvas>
     </div>
   </div>
   <div>
-    <h2>Resting heart rate</h2>
+    <h2>Resting heart rate (bpm)</h2>
     <div class="chart">
       <canvas id="resting-hr-chart" data-points='{{ resting_hr | tojson }}'
         data-average='{{ resting_hr_avg | tojson }}'></canvas>
     </div>
   </div>
   <div>
-    <h2>HRV (overnight average)</h2>
+    <h2>HRV (ms, overnight average)</h2>
     <div class="chart">
       <canvas id="hrv-chart" data-points='{{ hrv | tojson }}' data-average='{{ hrv_avg | tojson }}'
         data-baseline='{{ hrv_baseline | tojson }}'></canvas>

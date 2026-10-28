@@ -97,7 +97,7 @@ function plotExerciseTrendChart(canvas) {
     options: {
       maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
-      scales: buildDailyScales("kg"),
+      scales: buildDailyScales(),
       plugins: {
         legend: { display: false },
         tooltip: {

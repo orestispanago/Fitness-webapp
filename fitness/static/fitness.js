@@ -190,7 +190,7 @@ function formatShortfallTooltip(context) {
 
 function plotSleepChart() {
   const canvas = document.getElementById("sleep-chart");
-  const scales = buildDailyScales("min vs. need");
+  const scales = buildDailyScales();
   scales.y.grid = { color: getShortfallGridColor };
   return new Chart(canvas, {
     type: "bar",
@@ -227,7 +227,7 @@ function plotSleepChart() {
   });
 }
 
-const vo2maxChart = plotDailyLineChart("vo2max-chart", "VO2max", "ml/kg/min", [
+const vo2maxChart = plotDailyLineChart("vo2max-chart", "VO2max", [
   createBandsPlugin(VO2MAX_BANDS),
 ]);
 highlightPoints(
@@ -236,19 +236,19 @@ highlightPoints(
   getStatusColor("green"),
 );
 
-plotDailyAverageChart("resting-hr-chart", "Resting HR", "bpm");
+plotDailyAverageChart("resting-hr-chart", "Resting HR");
 
-const hrvChart = plotDailyAverageChart("hrv-chart", "HRV", "ms");
+const hrvChart = plotDailyAverageChart("hrv-chart", "HRV");
 addHrvBaseline(hrvChart);
 
-plotDailyAverageChart("weight-chart", "Weight", "kg", [
+plotDailyAverageChart("weight-chart", "Weight", [
   createMarkersPlugin(WEIGHT_MARKERS),
 ]);
 
 plotSleepChart();
 
 const acwrChart = plotDailyLineChart(
-  "acwr-chart", "ACWR", "acute:chronic ratio",
+  "acwr-chart", "ACWR",
   [createBandsPlugin(ACWR_BANDS)],
 );
 acwrChart.options.scales.y.suggestedMax = 1.7;
