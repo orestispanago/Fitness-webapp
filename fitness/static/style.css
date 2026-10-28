@@ -53,6 +53,17 @@ nav a {
     margin-bottom: 16px;
   }
 
+  /* .chart.chart-small to beat .chart-small's 220px, which comes later */
+  .chart.chart-small {
+    height: 200px;
+  }
+
+  /* Strength group headings, a step above the per-exercise h3s */
+  h2 {
+    font-size: 1.2em;
+    margin: 12px 0 4px;
+  }
+
   .chart-grid-large h2 {
     font-size: 1em;
     margin: 8px 0 4px;

@@ -386,7 +386,9 @@ All paths below are inside `fitness/`.
   heading) and the gap below each chart is 16 px instead of 32. Fixed px
   rather than an aspect ratio: legends take a fixed height, so a ratio
   leaves the legend charts the least plot on narrow phones. The strength
-  page's `.chart-small` keeps 220 px. One JS file per
+  page's `.chart-small` is 220 px, and 200 px on phones too, to match the
+  other pages; its group `<h2>`s shrink on phones to 1.2em with 12 px /
+  4 px margins, a step above the per-exercise `h3`s. One JS file per
   page (`static/fitness.js`, `static/running.js`, `static/strength.js`),
   loaded at the end of that page's template, plus `static/charts.js`
   with helpers shared by every page, loaded from `base.html` after
