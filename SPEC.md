@@ -57,10 +57,14 @@ charts, built incrementally, one vertical slice at a time.
   (`wktStepIndex` null) — linked sets take the name from the workout —
   and were fixed by editing them in Garmin Connect on 2026-10-24
   (bodyweight variants `PULL_UP` with no name, `SUSPENDED_DIP`, `CRUNCH`
-  with no name → their `WEIGHTED_*` names; S3's one-off standing calf
-  raise → seated). A weighted exercise can be entered without weight, so
-  a bodyweight set is the weighted exercise at 0 kg. Since then every
-  group has exactly 6 exercises, each under one name. If a new odd name
+  with no name → their `WEIGHTED_*` names). A weighted exercise can be
+  entered without weight, so a bodyweight set is the weighted exercise
+  at 0 kg. S3's calf raise was done standing by mistake until 2026-10-09
+  and seated from 2026-10-17; the workout step said seated, so the
+  standing sessions were renamed `WEIGHTED_STANDING_CALF_RAISE` in Garmin
+  (2026-10-29) rather than deleted, and the two show as separate charts.
+  Since then each exercise is under one name: S1, S2 and S4 have 6
+  exercises, S3 has 7. If a new odd name
   appears (most likely on a set added outside the workout's steps), fix
   it in Garmin and rebuild the DB: sets are fetched once per session, so
   edits to already-synced sessions are only picked up by a rebuild.
@@ -497,7 +501,7 @@ All paths below are inside `fitness/`.
 
   Strength page: `strength_sessions` + `strength_sets` sync done (DB
   rebuilt on 2026-10-24, and again after the exercise names were fixed
-  in Garmin); a first-vs-latest bar chart was built and later removed
+  in Garmin on 2026-10-24 and 2026-10-29); a first-vs-latest bar chart was built and later removed
   (see "Pages"). Per-exercise trend
   charts (`queries.strength.load_exercise_trends()`,
   `plotExerciseTrendChart` in `strength.js`, a `.chart-grid` of

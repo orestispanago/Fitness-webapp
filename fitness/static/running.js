@@ -25,6 +25,7 @@ function plotPaceChart() {
       plugins: {
         legend: { display: false },
         title: buildTitle(canvas),
+        subtitle: buildSubtitle(canvas, (value) => `${formatPace(value)} /km`),
         tooltip: {
           callbacks: {
             label: (context) => `Pace: ${formatPace(context.parsed.y)} /km`,
@@ -60,9 +61,9 @@ function getRunShape(run) {
 
 // Triangles cover less area than circles of the same radius
 function getRunRadius(run) {
-  let radius = 7;
+  let radius = 5;
   if (getRunShape(run) === "triangle") {
-    radius = 9;
+    radius = 7;
   }
   return radius;
 }
@@ -118,8 +119,7 @@ function buildRunTypeDataset(type, runs) {
     label: `${getRunTypeLabel(type)} (${runs.length})`,
     data: runs,
     backgroundColor: getRunTypeColor(type),
-    borderColor: "#fff",
-    borderWidth: 2,
+    borderWidth: 0,
     pointRadius: radii,
     pointHoverRadius: hoverRadii,
     pointStyle: shapes,
@@ -172,6 +172,7 @@ function plotMetresPerBeatChart() {
       scales: buildDailyScales(),
       plugins: {
         title: buildTitle(canvas),
+        subtitle: buildSubtitle(canvas),
         legend: {
           labels: {
             usePointStyle: true,

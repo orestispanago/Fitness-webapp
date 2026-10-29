@@ -54,7 +54,7 @@ const VO2MAX_BANDS = [
   },
 ];
 
-const WEIGHT_MARKERS = [{ date: "2026-10-07", label: "Creatine 5 g/day" }];
+const WEIGHT_MARKERS = [{ date: "2026-10-07", label: "Creatine" }];
 
 // 419 -> "6:59"
 function formatMinutes(minutes) {
@@ -146,6 +146,17 @@ function buildHrvTooltip(days, firstBandIndex) {
   };
 }
 
+// Garmin's latest HRV status, e.g. "BALANCED · today"
+function buildHrvSubtitle(canvas) {
+  const days = JSON.parse(canvas.dataset.baseline);
+  return buildDatedSubtitle(findLatestPoint(days, "status"), (day) => day.status);
+}
+
+// ACWR status from the bands, e.g. "OPTIMAL · today"
+function buildAcwrSubtitle(canvas) {
+  return buildSubtitle(canvas, (value) => findBandForValue(ACWR_BANDS, value).label);
+}
+
 function addHrvBaseline(chart) {
   const days = JSON.parse(chart.canvas.dataset.baseline);
   const average = JSON.parse(chart.canvas.dataset.average);
@@ -222,7 +233,8 @@ function plotSleepChart() {
       plugins: {
         legend: { display: false },
         tooltip: { callbacks: { label: formatShortfallTooltip } },
-        title: buildTitle(canvas)
+        title: buildTitle(canvas),
+        subtitle: buildSubtitle(canvas),
       },
     },
   });
@@ -240,6 +252,8 @@ highlightPoints(
 plotDailyAverageChart("resting-hr-chart", "Resting HR");
 
 const hrvChart = plotDailyAverageChart("hrv-chart", "HRV");
+hrvChart.options.plugins.subtitle = buildHrvSubtitle(hrvChart.canvas);
+hrvChart.update();
 addHrvBaseline(hrvChart);
 
 plotDailyAverageChart("weight-chart", "Weight", [
@@ -253,4 +267,5 @@ const acwrChart = plotDailyLineChart(
   [createBandsPlugin(ACWR_BANDS)],
 );
 acwrChart.options.scales.y.suggestedMax = 1.7;
+acwrChart.options.plugins.subtitle = buildAcwrSubtitle(acwrChart.canvas);
 highlightPoints(acwrChart, findBand(ACWR_BANDS, "HIGH"), getStatusColor("red"));

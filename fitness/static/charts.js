@@ -38,6 +38,69 @@ function buildTitle(canvas) {
   return { display: true, text: canvas.dataset.title };
 }
 
+// Subtitles: the latest value and how long ago it was
+Chart.defaults.plugins.subtitle.align = "start";
+Chart.defaults.plugins.subtitle.font = { size: 12 };
+Chart.defaults.plugins.subtitle.padding = { top: 0, bottom: 6 };
+
+// The last point with a value at key, or null if there is none
+function findLatestPoint(points, key) {
+  let latest = null;
+  for (const point of points) {
+    if (point[key] !== null && point[key] !== undefined) {
+      latest = point;
+    }
+  }
+  return latest;
+}
+
+// Whole days from "YYYY-MM-DD" to today, both as local dates (new Date()
+// on the string would parse it as UTC midnight)
+function countDaysAgo(dateText) {
+  const parts = dateText.split("-");
+  const date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Rounded, as a day across a DST change isn't 24 h
+  return Math.round((today - date) / 86400000);
+}
+
+function formatDaysAgo(days) {
+  let text = `${days} days ago`;
+  if (days <= 0) {
+    text = "today";
+  } else if (days === 1) {
+    text = "yesterday";
+  }
+  return text;
+}
+
+// 75.9, "kg" -> "75.9 kg"; no unit (e.g. ACWR) -> "75.9"
+function formatWithUnit(value, unit) {
+  let text = String(value);
+  if (unit !== undefined) {
+    text = `${value} ${unit}`;
+  }
+  return text;
+}
+
+// Subtitle "<formatPoint(point)> · today"; none if point is null
+function buildDatedSubtitle(point, formatPoint) {
+  const subtitle = { display: false, text: "" };
+  if (point !== null) {
+    subtitle.display = true;
+    subtitle.text = `${formatPoint(point)} · ${formatDaysAgo(countDaysAgo(point.x))}`;
+  }
+  return subtitle;
+}
+
+// "75.9 kg · today" from the canvas's data-points and data-unit;
+// formatValue(value, unit) can replace formatWithUnit (e.g. for pace)
+function buildSubtitle(canvas, formatValue = formatWithUnit) {
+  const latest = findLatestPoint(JSON.parse(canvas.dataset.points), "y");
+  const unit = canvas.dataset.unit;
+  return buildDatedSubtitle(latest, (point) => formatValue(point.y, unit));
+}
 
 // Compact legends for every chart, so they wrap less on narrow screens
 Chart.defaults.plugins.legend.labels.boxWidth = 12;
@@ -57,6 +120,17 @@ function findBand(bands, label) {
   let found = null;
   for (const band of bands) {
     if (found === null && band.label === label) {
+      found = band;
+    }
+  }
+  return found;
+}
+
+// The first band value falls in, e.g. OPTIMAL for 0.9 in ACWR_BANDS
+function findBandForValue(bands, value) {
+  let found = null;
+  for (const band of bands) {
+    if (found === null && isInBand(value, band)) {
       found = band;
     }
   }
@@ -205,6 +279,7 @@ function plotDailyAverageChart(canvasId, label, plugins = []) {
       scales: buildDailyScales(),
       plugins: {
         title: buildTitle(canvas),
+        subtitle: buildSubtitle(canvas),
       }
     },
     plugins: plugins,
@@ -249,7 +324,11 @@ function plotDailyLineChart(canvasId, label, plugins = []) {
       // Tooltip for the hovered date anywhere on the chart, not only on a point
       interaction: { mode: "index", intersect: false },
       scales: buildDailyScales(),
-      plugins: { legend: { display: false }, title: buildTitle(canvas) },
+      plugins: {
+        legend: { display: false },
+        title: buildTitle(canvas),
+        subtitle: buildSubtitle(canvas),
+      },
     },
     plugins: plugins,
   });

@@ -37,33 +37,25 @@ function formatTrendTooltip(context) {
   ];
 }
 
-// Chart.js plugin that draws a dashed line across the chart at kg
-function createLatestMaxPlugin(kg, color) {
-  return {
-    id: "latestMax",
-    afterDatasetsDraw(chart) {
-      const area = chart.chartArea;
-      const top = chart.scales.y.getPixelForValue(kg);
-      const ctx = chart.ctx;
-      ctx.save();
-      ctx.strokeStyle = color;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.moveTo(area.left, top);
-      ctx.lineTo(area.right, top);
-      ctx.stroke();
-      ctx.restore();
-    },
-  };
+// The session that first reached the current heaviest set, or null if no
+// session beat the first one
+function findRecordPoint(points) {
+  let record = null;
+  let best = points[0].max;
+  for (const point of points.slice(1)) {
+    if (point.max > best) {
+      best = point.max;
+      record = point;
+    }
+  }
+  return record;
 }
 
 // One exercise per chart: the average set as a line, with a band from the
-// lightest to the heaviest set behind it and a dashed line at the last
-// session's heaviest set
+// lightest to the heaviest set behind it and the PR in the subtitle
 function plotExerciseTrendChart(canvas) {
   const points = JSON.parse(canvas.dataset.points);
   const groupIndex = Number(canvas.dataset.group);
-  const latestMax = points[points.length - 1].max;
   return new Chart(canvas, {
     type: "line",
     data: {
@@ -101,6 +93,10 @@ function plotExerciseTrendChart(canvas) {
       plugins: {
         legend: { display: false },
         title: buildTitle(canvas),
+        subtitle: buildDatedSubtitle(
+          findRecordPoint(points),
+          (point) => `PR ${point.max} kg`,
+        ),
         tooltip: {
           // Only the average line's tooltip, which shows all three values
           filter: (item) => item.datasetIndex === 2,
@@ -108,7 +104,6 @@ function plotExerciseTrendChart(canvas) {
         },
       },
     },
-    plugins: [createLatestMaxPlugin(latestMax, getSessionColor(groupIndex, 0.8))],
   });
 }
 

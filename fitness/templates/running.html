@@ -8,13 +8,13 @@
 <div class="chart-grid chart-grid-large">
   <div>
     <div class="chart">
-      <canvas id="metres-per-beat-chart" data-title="Metres per heartbeat (all runs)"
+      <canvas id="metres-per-beat-chart" data-title="Efficiency Factor (all runs)" data-unit="m/beat"
         data-points='{{ metres_per_beat | tojson }}'></canvas>
     </div>
   </div>
   <div>
     <div class="chart">
-      <canvas id="pace-chart" data-title="Pace (min/km, base-HR runs)" data-points='{{ pace | tojson }}'></canvas>
+      <canvas id="pace-chart" data-title="Pace (base-HR runs)" data-points='{{ pace | tojson }}'></canvas>
     </div>
   </div>
 </div>
