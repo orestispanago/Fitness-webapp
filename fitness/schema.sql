@@ -53,7 +53,10 @@ CREATE TABLE IF NOT EXISTS runs (
     avg_hr INTEGER,
     location TEXT,
     run_type TEXT,
-    activity_name TEXT NOT NULL
+    activity_name TEXT NOT NULL,
+    temp_c REAL,
+    apparent_temp_c REAL,
+    relative_humidity INTEGER
 );
 
 -- Strength page

@@ -21,7 +21,8 @@ def load_metres_per_beat():
     """One point per run with HR: date, metres per heartbeat, run details."""
     rows = get_db().execute(
         "SELECT start_time_local, distance_m, duration_s, avg_hr,"
-        " location, run_type, activity_name FROM runs"
+        " location, run_type, activity_name,"
+        " temp_c, apparent_temp_c, relative_humidity FROM runs"
         " WHERE avg_hr IS NOT NULL AND distance_m > 0"
         " ORDER BY start_time_local"
     ).fetchall()
@@ -36,5 +37,8 @@ def load_metres_per_beat():
             "type": row["run_type"],
             "pace": round(row["duration_s"] / (row["distance_m"] / 1000)),
             "hr": row["avg_hr"],
+            "temp": row["temp_c"],
+            "feels": row["apparent_temp_c"],
+            "humidity": row["relative_humidity"],
         })
     return points

@@ -142,30 +142,35 @@ function buildRunTypeDatasets(runs) {
 
 function formatRunTooltip(context) {
   const run = context.raw;
-  return `${run.name} · ${run.y} m/beat · ` +
-    `${formatPace(run.pace)} /km at ${run.hr} bpm`;
+  return [`${run.name}`,
+  `${run.y} m/beat`,
+  `${formatPace(run.pace)} / km at ${run.hr} bpm`];
+}
+
+// The date, then the weather below it when the run has a report
+function formatRunTooltipTitle(items) {
+  const run = items[0].raw;
+  const lines = [items[0].label];
+  if (run.temp !== null) {
+    lines.push(`${Math.round(run.temp)} °C, feels ${Math.round(run.feels)} °C, ` +
+      `${run.humidity}% RH`);
+  }
+  return lines;
 }
 
 function plotMetresPerBeatChart() {
   const canvas = document.getElementById("metres-per-beat-chart");
   const runs = JSON.parse(canvas.dataset.points);
-  // Thin grey line joining all runs in date order, behind the dots
+  // Grey line joining all runs in date order
   const path = {
-    type: "line",
-    label: "path",
     data: runs,
-    borderColor: GREYS.guide,
-    borderWidth: 1,
-    pointRadius: 0,
-    pointHoverRadius: 0,
-    order: 1,
   };
   const datasets = [path];
   for (const dataset of buildRunTypeDatasets(runs)) {
     datasets.push(dataset);
   }
   return new Chart(canvas, {
-    type: "scatter",
+    type: "line",
     data: { datasets: datasets },
     options: {
       maintainAspectRatio: false,
@@ -184,7 +189,7 @@ function plotMetresPerBeatChart() {
         },
         tooltip: {
           filter: (item) => item.datasetIndex > 0,
-          callbacks: { label: formatRunTooltip },
+          callbacks: { title: formatRunTooltipTitle, label: formatRunTooltip },
         },
       },
     },
