@@ -446,6 +446,9 @@ All paths below are inside `fitness/`.
     tooltip's point, so a tap (on a phone) or hover shows where it is on
     the x-axis. Registered once with `Chart.register`, so every chart
     gets it, the strength and metres-per-heartbeat charts included.
+    Option `plugins.crosshair.horizontal` (default false) also draws a
+    horizontal line at the point's y; only the metres-per-heartbeat
+    chart turns it on.
 
   All date charts use `interaction: { mode: "index", intersect: false }`,
   so hovering anywhere shows the tooltip for the nearest date. Charts

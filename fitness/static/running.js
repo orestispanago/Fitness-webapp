@@ -173,6 +173,7 @@ function plotMetresPerBeatChart() {
       plugins: {
         title: buildTitle(canvas),
         subtitle: buildSubtitle(canvas),
+        crosshair: { horizontal: true },
         legend: {
           labels: {
             usePointStyle: true,

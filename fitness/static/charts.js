@@ -231,20 +231,26 @@ function createMarkersPlugin(markers) {
 
 // Chart.js plugin that draws a vertical line at the tooltip's point, so a
 // tap or hover shows where it is on the x-axis; registered for every chart.
+// With plugins.crosshair.horizontal it also draws a horizontal line.
 const CROSSHAIR_PLUGIN = {
   id: "crosshair",
-  afterDatasetsDraw(chart) {
+  defaults: { horizontal: false },
+  afterDatasetsDraw(chart, args, options) {
     const active = chart.tooltip.getActiveElements();
     if (active.length > 0) {
       const area = chart.chartArea;
-      const left = active[0].element.x;
+      const point = active[0].element;
       const ctx = chart.ctx;
       ctx.save();
       ctx.strokeStyle = GREYS.guide;
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(left, area.top);
-      ctx.lineTo(left, area.bottom);
+      ctx.moveTo(point.x, area.top);
+      ctx.lineTo(point.x, area.bottom);
+      if (options.horizontal) {
+        ctx.moveTo(area.left, point.y);
+        ctx.lineTo(area.right, point.y);
+      }
       ctx.stroke();
       ctx.restore();
     }
