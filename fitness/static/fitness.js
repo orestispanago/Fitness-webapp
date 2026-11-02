@@ -199,6 +199,16 @@ function formatShortfallTooltip(context) {
   return text;
 }
 
+// Tooltip at the first active point, where the crosshair lines cross (on
+// the sleep chart the 7-day average: it has the lowest `order`).
+Chart.Tooltip.positioners.firstActive = function (items) {
+  let position = false;
+  if (items.length > 0) {
+    position = { x: items[0].element.x, y: items[0].element.y };
+  }
+  return position;
+};
+
 function plotSleepChart() {
   const canvas = document.getElementById("sleep-chart");
   const scales = buildDailyScales();
@@ -232,7 +242,11 @@ function plotSleepChart() {
       scales: scales,
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: formatShortfallTooltip } },
+        tooltip: {
+          position: "firstActive",
+          callbacks: { label: formatShortfallTooltip },
+        },
+        crosshair: { horizontal: true },
         title: buildTitle(canvas),
         subtitle: buildSubtitle(canvas),
       },

@@ -448,8 +448,14 @@ All paths below are inside `fitness/`.
     the x-axis. Registered once with `Chart.register`, so every chart
     gets it, the strength and metres-per-heartbeat charts included.
     Option `plugins.crosshair.horizontal` (default false) also draws a
-    horizontal line at the point's y; only the metres-per-heartbeat
-    chart turns it on.
+    horizontal line at the point's y (`active[0]`, i.e. the dataset
+    with the lowest `order`); the metres-per-heartbeat and sleep
+    shortfall charts turn it on. On the sleep chart that point is the
+    7-day average, not the bar, and the tooltip is placed there too
+    (`firstActive` positioner in `fitness.js`), so the line, the
+    average's hover dot and the tooltip meet at one point instead of
+    the tooltip floating between bar and average (Chart.js's default
+    `average` position).
 
   All date charts use `interaction: { mode: "index", intersect: false }`,
   so hovering anywhere shows the tooltip for the nearest date. Charts
