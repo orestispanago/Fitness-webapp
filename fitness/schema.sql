@@ -43,6 +43,12 @@ CREATE TABLE IF NOT EXISTS training_load (
     acwr_ratio REAL
 );
 
+CREATE TABLE IF NOT EXISTS calories (
+    calendar_date TEXT NOT NULL PRIMARY KEY,
+    active_kcal INTEGER,
+    resting_kcal INTEGER NOT NULL
+);
+
 -- Running page
 
 CREATE TABLE IF NOT EXISTS runs (

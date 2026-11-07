@@ -7,6 +7,8 @@ from fitness.sync.common import list_days_in_range, split_date_windows
 RESTING_HR_MAX_DAYS = 365
 # get_hrv_data_range rejects ranges over 366 days with a 400 error
 HRV_MAX_DAYS = 365
+# get_calories_daily uses the same endpoint as get_rhr_daily
+CALORIES_MAX_DAYS = 365
 
 
 def find_daily_start_date(conn, table, value_column):
@@ -279,6 +281,40 @@ def sync_training_load(conn, client):
     print(f"training_load: {len(rows)} rows stored ({start} to {end})")
 
 
+# calories
+
+
+def fetch_calories(client, start, end):
+    entries = []
+    windows = split_date_windows(start, end, CALORIES_MAX_DAYS)
+    for window_start, window_end in windows:
+        entries.extend(client.get_calories_daily(window_start, window_end))
+    return entries
+
+
+def parse_calories(entries):
+    """(date, active kcal, resting kcal); the library's total is not stored."""
+    rows = []
+    for entry in entries:
+        resting = entry.get("resting")
+        if resting is None:
+            continue
+        active = entry.get("active")
+        if active is not None:
+            active = round(active)
+        rows.append((entry["calendarDate"], active, round(resting)))
+    return rows
+
+
+def sync_calories(conn, client):
+    start = find_daily_start_date(conn, "calories", "active_kcal")
+    end = date.today().isoformat()
+    entries = fetch_calories(client, start, end)
+    rows = parse_calories(entries)
+    store_daily(conn, "calories", ["active_kcal", "resting_kcal"], rows)
+    print(f"calories: {len(rows)} rows stored ({start} to {end})")
+
+
 def sync_all(conn, client):
     sync_vo2max(conn, client)
     sync_resting_hr(conn, client)
@@ -286,3 +322,4 @@ def sync_all(conn, client):
     sync_weight(conn, client)
     sync_sleep(conn, client)
     sync_training_load(conn, client)
+    sync_calories(conn, client)

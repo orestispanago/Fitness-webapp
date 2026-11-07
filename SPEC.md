@@ -184,7 +184,7 @@ service on the host).
 
 ## Database schema
 
-9 tables, SQLite, defined in `schema.sql`. Foreign keys are declared and
+10 tables, SQLite, defined in `schema.sql`. Foreign keys are declared and
 enforced (`PRAGMA foreign_keys = ON`, which must be re-issued on every
 connection — SQLite doesn't persist it in the database file). No indexes
 beyond primary keys.
@@ -202,9 +202,9 @@ and `sync` to apply it to existing data.
 `strength_sets` → `strength_sessions`, where sets are meaningless
 without their session.
 
-### Fitness page (6 tables)
+### Fitness page (7 tables)
 
-Shared refresh policy (all six daily tables, via `find_daily_start_date` in
+Shared refresh policy (all seven daily tables, via `find_daily_start_date` in
 `sync/daily.py`): `start` = the latest `calendar_date` whose value column is
 not null, or `FIRST_DATA_DATE` if there is none; `end = today`; rows are
 stored keyed on `calendar_date` (existing days overwritten). The start day is re-fetched (inclusive overlap — the
@@ -221,7 +221,9 @@ every sync — normally zero or one day.
 Value column per table: `vo2max_precise_value`, `resting_hr_bpm`,
 `hrv_value`, `weight_kg`, `sleep_duration_minutes` (`sleep_need_minutes`
 is always present, so it can't signal missing data), `acwr_status`
-(not `acwr_ratio`: Garmin sometimes reports a status without a ratio).
+(not `acwr_ratio`: Garmin sometimes reports a status without a ratio),
+`active_kcal` (`resting_kcal` is NOT NULL, so it can't signal missing
+data — same reasoning as `sleep`).
 
 Dense tables: `hrv`'s API omits days without data, so the sync fills them
 in itself (`list_days_in_range` in `sync/common.py`); `training_load`'s API already
@@ -245,6 +247,7 @@ HR 1.89 → 0.28 bpm, HRV 5.56 → 0.94 ms).
 | `weight` | `calendar_date` (PK), `weight_kg` (NOT NULL) | Sparse — weigh-in days only; the chart line connects weigh-ins | `get_weight_snapshot` → `dateWeightList` (whole range in one request, no limit observed). `weight` is in grams → kg (2 dp). `sourceType == "USER_SETTING"` entries (the weight from Garmin profile settings, not a weigh-in) are skipped. Several weigh-ins on one day → latest by `timestampGMT` |
 | `sleep` | `calendar_date` (PK), `sleep_duration_minutes` (nullable), `sleep_need_minutes` (NOT NULL) | Sparse — recorded nights only (a missed night has no entry at all, so there's no need value to store; the chart shows no bar for it). Duration stays nullable in case Garmin sends a night with a need but no duration; none so far | `get_sleep_daily` → `values.totalSleepTimeInSeconds` (→ minutes, rounded) and `values.sleepNeed` (already minutes); entries without `sleepNeed` skipped. The library splits ranges into 28-day requests itself. Charted as one bar per night (`queries.daily.load_sleep_shortfall`): duration minus need, in minutes, red below zero (short of need), green above, darker grid line at zero, plus a 7-day rolling-average line on top (`queries.daily.compute_rolling_average`, as for resting HR/HRV/weight), in Chart.js's default blue rather than the pink-red of the other averages, which blends into the red bars. Each point also carries the night's sleep (`slept`, minutes), so the tooltip shows `-51 min (slept 6:59)` (`formatMinutes` in `fitness.js`) and the average (`7-day average: -68 min`). Replaces an earlier two-line chart (sleep, dashed sleep need, in hours): the need is ~470 min almost every night, so the flat need line added little, while the gap to it is what matters (short on 88 of 116 nights, by 63 min on average) |
 | `training_load` | `calendar_date` (PK), `acwr_status`, `acute_load`, `chronic_load`, `acwr_ratio` (all nullable) | Dense — the API returns every day; all four columns nulled together when `acwrStatus == "NONE"` (onboarding, 06-28 to 07-03). `acwr_ratio` can also be null on days that do have a status (07-04 to 07-10); stored as Garmin reports it, not recomputed (Garmin's ratio isn't a plain acute/chronic division) | `get_weekly_training_status` → `reportData[<deviceId>][i].acuteTrainingLoadDTO`: `acwrStatus`, `dailyTrainingLoadAcute`, `dailyTrainingLoadChronic`, `dailyAcuteChronicWorkloadRatio`. Whole range in one request, no limit observed. Entries with `primaryTrainingDevice == false` skipped. Page: a `plotDailyLineChart` of the ratio, with shaded status bands behind it (LOW < 0.8, OPTIMAL 0.8–1.5, HIGH ≥ 1.5; `ACWR_BANDS` in `fitness.js`). The cut-offs are inferred from the data — every stored status matches them — not from Garmin documentation; a VERY HIGH status (sports-science literature uses > 2.0) has never been observed, so it has no band yet. The y-axis uses `suggestedMax: 1.7` so the HIGH band is always visible. Points with a ratio in the HIGH band (≥ 1.5, read from `ACWR_BANDS`) are drawn red (`highlightPoints`). Considered and not built (2026-10-25): a daily training-load bar chart under ACWR (per-activity `activityTrainingLoad`, stacked by type) to explain its peaks and dips — the ACWR chart is enough as it is |
+| `calories` | `calendar_date` (PK), `active_kcal` (nullable), `resting_kcal` (NOT NULL) | Sparse — days without data are absent. Daily totals, not per activity (the activity list's `calories` / `bmrCalories` are not stored). Resting is BMR, estimated from the profile, so a null could only be a bug; active stays nullable in case Garmin sends a day with BMR but no movement data (none so far: 131 days from `FIRST_DATA_DATE` with both values, no gaps). The day in progress is partial (resting 1540 on 2026-11-05 vs. ~1830–1934 on full days) and is re-fetched by the shared policy | `get_calories_daily` (same wellness-stats endpoint as `get_rhr_daily`, metric IDs 22 active, 23 BMR; so ≤365-day windows, as for `resting_hr`) → `active`, `resting` (floats, always whole; rounded to int). The library's `total` (its own `active + resting`, with a missing value counted as 0) is not stored; total is derived when needed. Chosen over `get_daily_stats(…, "CALORIES")` (Garmin's own total, range limit untested) and per-day `get_user_summary` (one request per day) for consistency with `resting_hr`. Not charted yet (2026-11-06) |
 
 ### Running page (1 table)
 
@@ -339,9 +342,9 @@ All paths below are inside `fitness/`.
     back the whole run). `__main__.py` just calls it, so the command is
     still `python -m fitness.sync`.
   - `common.py` — `open_connection`, `find_activity_start_date`, `store_new`, `split_date_windows`, `list_days_in_range`.
-  - `daily.py` — the six fitness-page tables, `find_daily_start_date`, and
+  - `daily.py` — the seven fitness-page tables, `find_daily_start_date`, and
     the per-endpoint range limits (`RESTING_HR_MAX_DAYS`,
-    `HRV_MAX_DAYS`).
+    `HRV_MAX_DAYS`, `CALORIES_MAX_DAYS`).
   - `running.py` — `runs`.
   - `strength.py` — `strength_sessions` and `strength_sets`.
 
@@ -497,8 +500,9 @@ All paths below are inside `fitness/`.
 - No ORM, no migration tooling — `schema.sql` is hand-edited directly as
   the schema evolves.
 - Status: all six fitness-page slices done (`vo2max`, `resting_hr`,
-  `hrv`, `weight`, `sleep`, `training_load`); sync code split into the
-  `sync/` package. Running page done, built in steps:
+  `hrv`, `weight`, `sleep`, `training_load`); `calories` sync done
+  (2026-11-06), no chart planned for now; sync code
+  split into the `sync/` package. Running page done, built in steps:
   1. done — base-HR runs sync + `/running` page with a pace chart;
   2. done, then dropped — duration and average heart-rate charts
      (see "Pages");
