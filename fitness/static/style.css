@@ -58,12 +58,6 @@ nav a {
     height: 200px;
   }
 
-  /* Strength group headings, a step above the per-exercise h3s */
-  h2 {
-    font-size: 1.2em;
-    margin: 12px 0 4px;
-  }
-
   .chart-grid-large h2 {
     font-size: 1em;
     margin: 8px 0 4px;
@@ -90,4 +84,28 @@ nav a {
 h3 {
   font-size: 1em;
   margin: 8px 0 4px;
+}
+
+/* Strength page: one tab per session group, the shown one in series blue */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 2px solid #ddd;
+  margin-bottom: 8px;
+}
+
+.tab {
+  padding: 6px 10px;
+  margin-bottom: -2px;
+  border-bottom: 3px solid transparent;
+  color: #555;
+  font-size: 0.9em;
+  text-decoration: none;
+}
+
+.tab.active {
+  border-bottom-color: rgb(54, 162, 235);
+  color: rgb(54, 162, 235);
+  font-weight: bold;
 }

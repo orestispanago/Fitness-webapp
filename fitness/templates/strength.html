@@ -5,20 +5,26 @@
 {% block content %}
 <h1>Strength</h1>
 
-{% for group in groups %}
-{% set group_index = loop.index0 %}
-<h2>{{ group.label }}</h2>
+<div class="tabs">
+  {% for label in labels %}
+  {% if label == selected %}
+  <a class="tab active" href="{{ url_for('strength_page', group=label) }}" aria-current="page">{{ label }}</a>
+  {% else %}
+  <a class="tab" href="{{ url_for('strength_page', group=label) }}">{{ label }}</a>
+  {% endif %}
+  {% endfor %}
+</div>
+
 <div class="chart-grid">
-  {% for exercise in group.exercises %}
+  {% for exercise in exercises %}
   <div>
     <div class="chart chart-small">
-      <canvas class="exercise-chart" data-title="{{ exercise.label }}" data-group='{{ group_index }}'
+      <canvas class="exercise-chart" data-title="{{ exercise.label }}" data-group='{{ labels.index(selected) }}'
         data-points='{{ exercise.points | tojson }}'></canvas>
     </div>
   </div>
   {% endfor %}
 </div>
-{% endfor %}
 
 <script src="{{ url_for('static', filename='strength.js') }}"></script>
 {% endblock %}

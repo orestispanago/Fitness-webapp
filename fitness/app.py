@@ -90,8 +90,17 @@ def running_page():
 
 @app.route("/strength")
 def strength_page():
-    groups = strength.load_exercise_trends()
-    return render_template("strength.html", groups=groups)
+    rows = strength.load_strength_sets()
+    labels = strength.list_session_labels(rows)
+    selected = strength.choose_group(rows, labels, request.args.get("group"))
+    group_rows = strength.filter_group_rows(rows, selected)
+    exercises = strength.build_exercise_trends(group_rows)
+    return render_template(
+        "strength.html",
+        labels=labels,
+        selected=selected,
+        exercises=exercises,
+    )
 
 
 @app.route("/sync", methods=["POST"])

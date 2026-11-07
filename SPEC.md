@@ -18,8 +18,8 @@ charts, built incrementally, one vertical slice at a time.
   comparable if the distance changes. No average-HR chart: runs are
   paced to keep max HR under 150, so average HR (131–137 so far) is set
   by pacing, warm-up and heat, not fitness — fitness shows up as pace.
-- `/strength` — per-exercise trend charts only, one section per session
-  group. An earlier first-vs-latest bar chart (heaviest set per key
+- `/strength` — per-exercise trend charts only, one session group per
+  page. An earlier first-vs-latest bar chart (heaviest set per key
   exercise, with gain labels) was removed on 2026-10-26: the trend
   charts are what gets watched, and the variants tried — side-by-side,
   stacked, one chart per group, a bar next to or inside each trend —
@@ -68,6 +68,23 @@ charts, built incrementally, one vertical slice at a time.
   appears (most likely on a set added outside the workout's steps), fix
   it in Garmin and rebuild the DB: sets are fetched once per session, so
   edits to already-synced sessions are only picked up by a rebuild.
+
+  One session group per page, chosen with a row of tabs (links, one per
+  group), so the workout you're about to do is found without scrolling
+  past the others (25 charts, ~1,400 px per group on a phone). Chosen
+  on 2026-11-07 over jump links to anchors on one long page and
+  collapsible `<details>` groups with only one open, after trying all
+  three in a demo on laptop and phone. With no group chosen, the page
+  shows the latest session's group. Chosen 2026-11-07 over guessing the
+  next one due from the rotation (sessions mostly follow label order,
+  2–4 days apart, but the order has broken before), alone or with the
+  latest group on a day a session was done, and over always the first
+  group; the tabs reach any other group in one tap.
+  A tab links to `/strength?group=<session_label>`,
+  the label as-is (`url_for` writes `?group=S2+Chest`); a missing or unknown `group`
+  gets the default. Chosen 2026-11-07 over a slug (`?group=s2-chest`,
+  which needs a conversion each way for looks only) and a path segment
+  (`/strength/<group>`, a second route; no other page has one).
 
 All three pages show full history only — no date range picker.
 
@@ -327,8 +344,12 @@ All paths below are inside `fitness/`.
   reached ~340 lines across three pages; `common.py` holds the one
   helper shared across pages, `get_date_part` (timestamp → `YYYY-MM-DD`,
   used 4 times). In `strength.py`, the trend charts read sets via
-  `load_strength_sets` → `group_set_weights`, sections ordered by
-  `list_session_labels`.
+  `load_strength_sets`; the tabs come from `list_session_labels`,
+  `choose_group` picks the shown group (`find_latest_label` when none
+  or an unknown one is asked for), and `filter_group_rows` →
+  `build_exercise_trends` → `group_set_weights` build its charts. The
+  chart colour is the group's position in all labels
+  (`labels.index(selected)` in the template), not on the page.
 - `init_db.py` — separate setup command that applies `schema.sql`.
   Run once, and again after editing the schema. `sync/` and `db.py`
   open the DB in `mode=rw`, so they fail loudly instead of silently
@@ -395,8 +416,9 @@ All paths below are inside `fitness/`.
   rather than an aspect ratio: legends take a fixed height, so a ratio
   leaves the legend charts the least plot on narrow phones. The strength
   page's `.chart-small` is 220 px, and 200 px on phones too, to match the
-  other pages; its group `<h2>`s shrink on phones to 1.2em with 12 px /
-  4 px margins, a step above the per-exercise `h3`s. One JS file per
+  other pages. Its group tabs (`.tabs`, `.tab`) are underlined links,
+  the shown group bold in the series blue (no `<h2>` per group: the
+  active tab names it). One JS file per
   page (`static/fitness.js`, `static/running.js`, `static/strength.js`),
   loaded at the end of that page's template, plus `static/charts.js`
   with helpers shared by every page, loaded from `base.html` after
@@ -517,12 +539,13 @@ All paths below are inside `fitness/`.
   rebuilt on 2026-10-24, and again after the exercise names were fixed
   in Garmin on 2026-10-24 and 2026-10-29); a first-vs-latest bar chart was built and later removed
   (see "Pages"). Per-exercise trend
-  charts (`queries.strength.load_exercise_trends()`,
+  charts (`queries.strength.build_exercise_trends()`,
   `plotExerciseTrendChart` in `strength.js`, a `.chart-grid` of
   `.chart-small` charts): done for all groups. The groups come from the
   data (every `session_label` with stored sets, sorted, so S1–S4 in
   order), like the exercises within them — a new workout shows up as a
-  new section by itself.
+  new tab by itself. One group per page with tabs and a default group
+  (see "Pages"): done 2026-11-07.
 
   The nav in
   `base.html` only links pages that exist; it grows as pages are added.

@@ -74,14 +74,25 @@ def build_exercise_trends(rows):
     return trends
 
 
-def load_exercise_trends():
-    """Per session group, sorted by label: its exercises' trends."""
-    rows = load_strength_sets()
-    rows_by_group = {}
+def filter_group_rows(rows, label):
+    group_rows = []
     for row in rows:
-        rows_by_group.setdefault(row["session_label"], []).append(row)
-    groups = []
-    for label in list_session_labels(rows):
-        exercises = build_exercise_trends(rows_by_group[label])
-        groups.append({"label": label, "exercises": exercises})
-    return groups
+        if row["session_label"] == label:
+            group_rows.append(row)
+    return group_rows
+
+
+def find_latest_label(rows):
+    """Group of the latest session (rows are in session order)."""
+    label = None
+    if rows:
+        label = rows[-1]["session_label"]
+    return label
+
+
+def choose_group(rows, labels, requested_label):
+    """The requested group if it exists, else the default (see SPEC.md)."""
+    label = requested_label
+    if label not in labels:
+        label = find_latest_label(rows)
+    return label
