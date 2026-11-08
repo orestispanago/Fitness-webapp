@@ -1,40 +1,31 @@
-// One colour per session group, in group order (S1, S2, …): line and band
-// of every exercise chart in that group; groups past the list are grey
-const SESSION_COLORS = [
-  "54, 162, 235",
-  "235, 104, 52",
-  "27, 175, 122",
-  "98, 80, 214",
-  "237, 161, 0",
-  "232, 123, 164",
-];
-const OTHER_SESSION_COLOR = "138, 137, 133";
+// ECharts spike: default ECharts styling (see SPEC.md for the Chart.js version)
 
-function getSessionColor(groupIndex, alpha = 1) {
-  let rgb = OTHER_SESSION_COLOR;
-  if (groupIndex < SESSION_COLORS.length) {
-    rgb = SESSION_COLORS[groupIndex];
-  }
-  return `rgba(${rgb}, ${alpha})`;
-}
-
-// Chart.js points from one key of each trend point ("min", "avg", "max");
-// the whole point rides along for the tooltip
+// [date, value] pairs from one key of each trend point ("min", "avg")
 function buildTrendSeries(points, key) {
   const series = [];
   for (const point of points) {
-    series.push({ x: point.x, y: point[key], point: point });
+    series.push([point.x, point[key]]);
   }
   return series;
 }
 
-function formatTrendTooltip(context) {
-  const point = context.raw.point;
+// [date, max - min] pairs, stacked on the lightest set to draw the band
+function buildBandHeights(points) {
+  const series = [];
+  for (const point of points) {
+    series.push([point.x, point.max - point.min]);
+  }
+  return series;
+}
+
+function formatTrendTooltip(points, params) {
+  const point = points[params[0].dataIndex];
   return [
+    point.x,
     `Max ${point.max} kg`,
     `Average ${point.avg} kg`,
     `Min ${point.min} kg`,
-  ];
+  ].join("<br>");
 }
 
 // The session that first reached the current heaviest set, or null if no
@@ -53,60 +44,61 @@ function findRecordPoint(points) {
 
 // One exercise per chart: the average set as a line, with a band from the
 // lightest to the heaviest set behind it and the PR in the subtitle
-function plotExerciseTrendChart(canvas) {
-  const points = JSON.parse(canvas.dataset.points);
-  const groupIndex = Number(canvas.dataset.group);
-  return new Chart(canvas, {
-    type: "line",
-    data: {
-      datasets: [
-        {
-          label: "Lightest set",
-          data: buildTrendSeries(points, "min"),
-          borderColor: "transparent",
-          pointRadius: 0,
-          pointHoverRadius: 0,
-          fill: false,
-        },
-        {
-          label: "Heaviest set",
-          data: buildTrendSeries(points, "max"),
-          borderColor: "transparent",
-          pointRadius: 0,
-          pointHoverRadius: 0,
-          backgroundColor: getSessionColor(groupIndex, 0.18),
-          // Fill down to the lightest-set dataset
-          fill: "-1",
-        },
-        {
-          label: "Average set",
-          data: buildTrendSeries(points, "avg"),
-          borderColor: getSessionColor(groupIndex),
-          backgroundColor: getSessionColor(groupIndex),
-        },
-      ],
+function plotExerciseTrendChart(element) {
+  const points = JSON.parse(element.dataset.points);
+  const subtitle = buildDatedSubtitle(
+    findRecordPoint(points),
+    (point) => `PR ${point.max} kg`,
+  );
+  const chart = echarts.init(element);
+  chart.setOption({
+    title: { text: element.dataset.title, subtext: subtitle.text },
+    tooltip: {
+      trigger: "axis",
+      formatter: (params) => formatTrendTooltip(points, params),
     },
-    options: {
-      maintainAspectRatio: false,
-      interaction: { mode: "index", intersect: false },
-      scales: buildDailyScales(),
-      plugins: {
-        legend: { display: false },
-        title: buildTitle(canvas),
-        subtitle: buildDatedSubtitle(
-          findRecordPoint(points),
-          (point) => `PR ${point.max} kg`,
-        ),
-        tooltip: {
-          // Only the average line's tooltip, which shows all three values
-          filter: (item) => item.datasetIndex === 2,
-          callbacks: { label: formatTrendTooltip },
-        },
+    // At least a month between ticks, so day and month labels don't collide
+    xAxis: { type: "time", minInterval: 28 * 24 * 3600 * 1000 },
+    // Smaller bottom margin than the default, for a taller plot
+    grid: { top: 60, bottom: 30 },
+    // About 3 intervals rather than 5, so labels don't crowd
+    yAxis: { type: "value", scale: true, splitNumber: 3 },
+    series: [
+      {
+        name: "Lightest set",
+        type: "line",
+        data: buildTrendSeries(points, "min"),
+        stack: "band",
+        symbol: "none",
+        lineStyle: { opacity: 0 },
       },
-    },
+      {
+        name: "Heaviest set",
+        type: "line",
+        data: buildBandHeights(points),
+        stack: "band",
+        symbol: "none",
+        lineStyle: { opacity: 0 },
+        areaStyle: {},
+      },
+      {
+        name: "Average set",
+        type: "line",
+        data: buildTrendSeries(points, "avg"),
+      },
+    ],
   });
+  return chart;
 }
 
-for (const canvas of document.querySelectorAll(".exercise-chart")) {
-  plotExerciseTrendChart(canvas);
+const charts = [];
+for (const element of document.querySelectorAll(".exercise-chart")) {
+  charts.push(plotExerciseTrendChart(element));
 }
+
+// ECharts doesn't follow its container's size by itself
+window.addEventListener("resize", () => {
+  for (const chart of charts) {
+    chart.resize();
+  }
+});

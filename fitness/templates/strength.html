@@ -18,13 +18,12 @@
 <div class="chart-grid">
   {% for exercise in exercises %}
   <div>
-    <div class="chart chart-small">
-      <canvas class="exercise-chart" data-title="{{ exercise.label }}" data-group='{{ labels.index(selected) }}'
-        data-points='{{ exercise.points | tojson }}'></canvas>
-    </div>
+    <div class="chart chart-small exercise-chart" data-title="{{ exercise.label }}"
+      data-points='{{ exercise.points | tojson }}'></div>
   </div>
   {% endfor %}
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/echarts@6.0.0/dist/echarts.min.js"></script>
 <script src="{{ url_for('static', filename='strength.js') }}"></script>
 {% endblock %}
