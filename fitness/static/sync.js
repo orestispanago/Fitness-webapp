@@ -2,9 +2,7 @@
 
 // Disabled while the sync runs, so a second click can't start another
 function disableSyncButton(event) {
-  const button = event.target.querySelector("button");
-  button.disabled = true;
-  button.textContent = "Syncing…";
+  event.target.querySelector("button").disabled = true;
 }
 
 document.querySelector(".sync-form").addEventListener("submit", disableSyncButton);

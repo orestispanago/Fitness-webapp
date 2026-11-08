@@ -34,24 +34,23 @@ nav a[aria-current="page"] {
   margin-left: auto;
 }
 
-/* Outlined in the chart accent blue */
+/* Styled like the nav links, in the accent blue; grey while syncing */
 .sync-form button {
   font: inherit;
-  font-size: 0.9em;
-  padding: 4px 14px;
-  border: 1px solid rgb(0, 114, 178);
+  padding: 6px 12px;
+  border: none;
   border-radius: 4px;
-  background: #fff;
+  background: none;
   color: rgb(0, 114, 178);
   cursor: pointer;
 }
 
 .sync-form button:hover:enabled {
-  background: rgba(0, 114, 178, 0.1);
+  background: #f0f0f0;
 }
 
 .sync-form button:disabled {
-  opacity: 0.55;
+  color: #aaa;
   cursor: default;
 }
 
@@ -64,6 +63,13 @@ nav a[aria-current="page"] {
 /* Shorter on phones, so a chart doesn't fill the screen; smaller gaps,
    like the Garmin app */
 @media (max-width: 600px) {
+  /* Smaller nav, so the links and Sync fit a 320 px phone in one row */
+  nav a,
+  .sync-form button {
+    padding: 6px 8px;
+    font-size: 0.9em;
+  }
+
   .chart {
     height: 200px;
     margin-bottom: 16px;

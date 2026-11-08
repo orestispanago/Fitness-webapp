@@ -134,8 +134,10 @@ authenticated session and token cache (own token path, not
 
 ## Refresh behavior
 
-- A Sync button (`↻ Sync`, outlined in the chart accent blue, light
-  blue fill on hover, faded while syncing) at the right end of the nav
+- A Sync button (`Sync`, styled like the nav links but in the accent
+  blue; greyed out while syncing; 2026-11-08, replacing an outlined
+  `↻ Sync` whose label wrapped onto two lines on a phone and whose size
+  didn't match the links) at the right end of the nav
   (in `base.html`, so on every page) runs the same `fitness.sync.main()` as the CLI, which still
   works. Added 2026-10-26.
   - It is a `<form method="post">` to `/sync` (POST, not a GET link: a
@@ -145,8 +147,8 @@ authenticated session and token cache (own token path, not
     if `next` isn't a local path (open-redirect guard,
     `is_local_path` in `app.py`).
   - The request blocks until the sync is done. `static/sync.js`
-    (loaded at the end of `base.html`) disables the button and shows
-    "Syncing…" on submit, so a second click can't start a second Garmin
+    (loaded at the end of `base.html`) disables (greys out) the button on
+    submit, so a second click can't start a second Garmin
     login and fetch.
   - No message on the page. A successful sync just reloads the page; a
     failed one isn't caught, so Flask shows its 500 page (traceback in
@@ -459,13 +461,23 @@ All paths below are inside `fitness/`.
   Blue because the chart accent sets the theme; a grey pill (data
   alone in colour) and other Okabe–Ito colours (sky blue and orange
   about 2:1 on white, vermillion below AA and reads as a warning, the
-  rest are status colours) were compared and not taken. Chart
+  rest are status colours) were compared and not taken. On phones
+  (≤ 600 px) the links and Sync are 0.9em with `6px 8px` padding, so
+  the row (about 274 px) fits a 320 px phone's 288 px; at full size it
+  needs about 328 px and cut Sync off. Chosen over padding cuts alone
+  (about 8 px to spare) and letting Sync wrap to a second row. Chart
   titles are drawn by the chart (ECharts `title`, left as ECharts places
   it), not as `<h2>`/`<h3>` headings (2026-10-28), with a subtitle under
   each: the latest value and how long ago it was (`75.3 kg ·
   yesterday`), or for HRV Garmin's latest status, for ACWR the latest
   status band, and for strength the PR (2026-10-29). Units go in the
   title or subtitle; no y-axis titles, to give phones more plot width.
+  Subtitle in the axis-label grey `#54555a` (7.4:1 on white), at
+  ECharts' 12 px (2026-11-08): its default `#86878c` (3.6:1) was below
+  WCAG's 4.5:1 and fainter than the axis labels. Chosen over a bigger
+  subtitle (a taller top margin, so less plot on phones), a bold value
+  with a lighter age (rich-text markup in `buildDatedSubtitle`) and the
+  value as the title with the name under it, compared on the real pages.
 
   One JS file per page (`static/fitness.js`, `static/running.js`,
   `static/strength.js`), loaded at the end of that page's template, plus

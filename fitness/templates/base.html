@@ -17,7 +17,7 @@
     {% endfor %}
     <form class="sync-form" method="post" action="{{ url_for('sync') }}">
       <input type="hidden" name="next" value="{{ request.path }}">
-      <button type="submit">↻ Sync</button>
+      <button type="submit">Sync</button>
     </form>
   </nav>
   {% block content %}{% endblock %}

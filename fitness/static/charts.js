@@ -159,7 +159,12 @@ function buildDateAxis() {
 // The frame every chart starts from; pages add series and adjust the rest
 function buildChartOption(element, subtitleText) {
   return {
-    title: { text: element.dataset.title, subtext: subtitleText },
+    // Darker than ECharts' default subtitle grey (see SPEC.md)
+    title: {
+      text: element.dataset.title,
+      subtext: subtitleText,
+      subtextStyle: { color: "#54555a" },
+    },
     color: SERIES_COLORS,
     // Axis tooltip: its crosshair hides with it on a phone. Kept inside
     // the chart, so it doesn't run off the screen
