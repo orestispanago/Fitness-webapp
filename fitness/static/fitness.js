@@ -144,6 +144,10 @@ function plotVo2maxChart() {
     name: "VO2max",
     type: "line",
     data: buildPairs(JSON.parse(element.dataset.points)),
+    // Small filled dots on a thinner line (see SPEC.md)
+    symbol: "circle",
+    symbolSize: 3,
+    lineStyle: { width: 1.5 },
     markArea: buildMarkArea(VO2MAX_BANDS, 0, 100),
   }];
   return plotChart(element, option);
@@ -183,6 +187,9 @@ function plotAcwrChart() {
       JSON.parse(element.dataset.points),
       findBand(ACWR_BANDS, "HIGH"),
     ),
+    // Line only, thinner than the 2 px default (see SPEC.md)
+    symbol: "none",
+    lineStyle: { width: 1.5 },
     markArea: buildMarkArea(ACWR_BANDS, 0, 10),
   }];
   return plotChart(element, option);
@@ -250,7 +257,7 @@ function plotSleepChart() {
   return plotChart(element, option);
 }
 
-function getHrvRingColor(status) {
+function getHrvStatusColor(status) {
   let color = getStatusColor("orange");
   if (status === "LOW") {
     color = getStatusColor("red");
@@ -319,25 +326,25 @@ function buildHrvBaselineSeries(days) {
   return [lowLimit, lowStrip, balanced];
 }
 
-// Rings on the 7-day line where Garmin's status isn't BALANCED: status
+// Dots on the 7-day line where Garmin's status isn't BALANCED: status
 // follows the 7-day average, not single nights
-function buildHrvRingSeries(days, average) {
+function buildHrvStatusSeries(days, average) {
   const data = [];
   for (let index = 0; index < days.length; index += 1) {
     const status = days[index].status;
     if (status === "UNBALANCED" || status === "LOW") {
       data.push({
         value: [average[index].x, average[index].y],
-        itemStyle: { borderColor: getHrvRingColor(status) },
+        itemStyle: { color: getHrvStatusColor(status) },
       });
     }
   }
   return {
     type: "scatter",
     data: data,
-    symbolSize: 14,
+    // Same size as ACWR's HIGH dots (see SPEC.md)
+    symbolSize: 6,
     silent: true,
-    itemStyle: { color: "transparent", borderWidth: 2 },
     z: 3,
   };
 }
@@ -376,7 +383,7 @@ function plotHrvChart() {
   for (const series of buildHrvBaselineSeries(days)) {
     option.series.push(series);
   }
-  option.series.push(buildHrvRingSeries(days, average));
+  option.series.push(buildHrvStatusSeries(days, average));
   return plotChart(element, option);
 }
 

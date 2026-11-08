@@ -21,6 +21,10 @@ function plotPaceChart() {
     name: "Pace",
     type: "line",
     data: buildPairs(JSON.parse(element.dataset.points)),
+    // Small filled dots on a thinner line, as on VO2max (see SPEC.md)
+    symbol: "circle",
+    symbolSize: 3,
+    lineStyle: { width: 1.5 },
   }];
   return plotChart(element, option);
 }
@@ -52,7 +56,10 @@ function buildAllRunsSeries(runs) {
     type: "line",
     data: data,
     color: ALL_RUNS_COLOR,
-    lineStyle: { width: 1 },
+    // Small filled dots on a 1.5 px line, as on VO2max (see SPEC.md)
+    symbol: "circle",
+    symbolSize: 3,
+    lineStyle: { width: 1.5 },
   };
 }
 
@@ -69,8 +76,8 @@ function buildHighlightSeries(runs, highlight) {
     type: "scatter",
     data: data,
     tooltip: { show: false },
-    // Smaller than ECharts' 10 px default
-    symbolSize: 8,
+    // Smaller than ECharts' 10 px default (see SPEC.md)
+    symbolSize: 5,
     z: 3,
   };
 }

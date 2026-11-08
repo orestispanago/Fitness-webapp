@@ -1,6 +1,6 @@
 // Chart helpers shared by every page; loaded from base.html after ECharts.
 
-// Status colours (bands, highlighted points, bars, rings), one set for
+// Status colours (bands, highlighted points, bars), one set for
 // every chart; series keep ECharts' default colours (see SPEC.md)
 const STATUS_COLORS = {
   green: "75, 192, 92",
