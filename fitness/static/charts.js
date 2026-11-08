@@ -1,14 +1,21 @@
 // Chart helpers shared by every page; loaded from base.html after ECharts.
 
-// Status colours (bands, highlighted points, bars), one set for
-// every chart; series keep ECharts' default colours (see SPEC.md)
+// Colour theme (see SPEC.md): Okabe–Ito throughout. Series take
+// SERIES_COLORS in order, the first being the accent for trends
+const SERIES_COLORS = ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00"];
+const ACCENT_COLOR = SERIES_COLORS[0];
+
+// Raw values under a trend (daily dots, all runs)
+const RAW_DATA_COLOR = "#b0b0b0";
+
+// Status colours (bands, highlighted points, bars), one set for every chart
 const STATUS_COLORS = {
-  green: "75, 192, 92",
-  yellow: "255, 205, 86",
-  orange: "255, 159, 64",
-  red: "255, 99, 71",
-  blue: "54, 162, 235",
-  purple: "153, 102, 255",
+  green: "0, 158, 115",
+  yellow: "240, 228, 66",
+  orange: "230, 159, 0",
+  red: "213, 94, 0",
+  blue: "86, 180, 233",
+  purple: "204, 121, 167",
 };
 
 function getStatusColor(name, alpha = 1) {
@@ -153,6 +160,7 @@ function buildDateAxis() {
 function buildChartOption(element, subtitleText) {
   return {
     title: { text: element.dataset.title, subtext: subtitleText },
+    color: SERIES_COLORS,
     // Axis tooltip: its crosshair hides with it on a phone. Kept inside
     // the chart, so it doesn't run off the screen
     tooltip: { trigger: "axis", confine: true },

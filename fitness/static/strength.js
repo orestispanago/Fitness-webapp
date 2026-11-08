@@ -60,12 +60,17 @@ function plotExerciseTrendChart(element) {
       stack: "band",
       symbol: "none",
       lineStyle: { opacity: 0 },
-      areaStyle: {},
+      areaStyle: { color: RAW_DATA_COLOR, opacity: 0.4 },
     },
     {
       name: "Average set",
       type: "line",
+      color: ACCENT_COLOR,
       data: buildPairs(points, "avg"),
+      // As on VO2max (see SPEC.md)
+      symbol: "circle",
+      symbolSize: 3,
+      lineStyle: { width: 1.5 },
     },
   ];
   return plotChart(element, option);

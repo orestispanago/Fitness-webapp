@@ -79,12 +79,14 @@ function buildDailyAverageOption(element, label) {
       data: buildPairs(JSON.parse(element.dataset.points)),
       // Smaller than ECharts' 10 px default; the Chart.js size
       symbolSize: 6,
+      color: RAW_DATA_COLOR,
     },
     {
       name: "7-day average",
       type: "line",
       data: buildPairs(JSON.parse(element.dataset.average)),
       symbol: "none",
+      color: ACCENT_COLOR,
     },
   ];
   return option;
@@ -195,12 +197,12 @@ function plotAcwrChart() {
   return plotChart(element, option);
 }
 
-// ECharts palette colours: pink for nights short of the sleep need, teal
-// otherwise
+// Orange for nights short of the sleep need, blue otherwise; half
+// transparent, so the 7-day line stands out (see SPEC.md)
 function getShortfallColor(minutes) {
-  let color = "#3fbe95";
+  let color = getStatusColor("blue", 0.5);
   if (minutes < 0) {
-    color = "#fb628b";
+    color = getStatusColor("orange", 0.5);
   }
   return color;
 }
@@ -252,6 +254,7 @@ function plotSleepChart() {
       type: "line",
       data: buildPairs(JSON.parse(element.dataset.average)),
       symbol: "none",
+      color: ACCENT_COLOR,
     },
   ];
   return plotChart(element, option);

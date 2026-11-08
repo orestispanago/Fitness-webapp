@@ -31,7 +31,6 @@ function plotPaceChart() {
 
 // Highlighted runs, in legend order; the rest show only as grey points
 const HIGHLIGHTS = ["Base-HR", "Threshold-HR", "Laganas"];
-const ALL_RUNS_COLOR = "#b0b0b0";
 
 // The highlight a run belongs to (its type, else its location), or null
 function getRunHighlight(run) {
@@ -55,7 +54,7 @@ function buildAllRunsSeries(runs) {
     name: "All runs",
     type: "line",
     data: data,
-    color: ALL_RUNS_COLOR,
+    color: RAW_DATA_COLOR,
     // Small filled dots on a 1.5 px line, as on VO2max (see SPEC.md)
     symbol: "circle",
     symbolSize: 3,
