@@ -165,8 +165,13 @@ function plotMetresPerBeatChart() {
         itemGap: 8,
         textStyle: { fontSize: 11 },
       },
-      // At least a month between ticks, so day and month labels don't collide
-      xAxis: { type: "time", minInterval: 28 * 24 * 3600 * 1000 },
+      xAxis: {
+        type: "time",
+        // At least a month between ticks, so day and month labels don't collide
+        minInterval: 28 * 24 * 3600 * 1000,
+        // Vertical crosshair at the nearest run's date
+        axisPointer: { show: true, snap: true },
+      },
       grid: { top: 60 },
       // About 3 intervals rather than 5, so labels don't crowd
       yAxis: { type: "value", scale: true, splitNumber: 3 },
