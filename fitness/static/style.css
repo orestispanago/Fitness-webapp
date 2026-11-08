@@ -45,8 +45,8 @@ nav a {
   margin-bottom: 32px;
 }
 
-/* Shorter on phones, so a chart doesn't fill the screen; smaller headings
-   and gaps, like the Garmin app */
+/* Shorter on phones, so a chart doesn't fill the screen; smaller gaps,
+   like the Garmin app */
 @media (max-width: 600px) {
   .chart {
     height: 200px;
@@ -58,14 +58,9 @@ nav a {
     height: 200px;
   }
 
-  /* Taller for the Efficiency Factor chart, whose legend takes 3 rows */
+  /* Taller for the Efficiency Factor chart, whose legend takes 2 rows */
   .chart.chart-legend {
     height: 260px;
-  }
-
-  .chart-grid-large h2 {
-    font-size: 1em;
-    margin: 8px 0 4px;
   }
 }
 
@@ -86,12 +81,7 @@ nav a {
   margin-bottom: 16px;
 }
 
-h3 {
-  font-size: 1em;
-  margin: 8px 0 4px;
-}
-
-/* Strength page: one tab per session group, the shown one in series blue */
+/* Strength page: one tab per session group, the shown one in blue */
 .tabs {
   display: flex;
   flex-wrap: wrap;
