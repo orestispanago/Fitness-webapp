@@ -134,7 +134,7 @@ authenticated session and token cache (own token path, not
 
 ## Refresh behavior
 
-- A Sync button (`↻ Sync`, outlined in blue (Chart.js's series blue), light
+- A Sync button (`↻ Sync`, outlined in the chart accent blue, light
   blue fill on hover, faded while syncing) at the right end of the nav
   (in `base.html`, so on every page) runs the same `fitness.sync.main()` as the CLI, which still
   works. Added 2026-10-26.
@@ -448,7 +448,18 @@ All paths below are inside `fitness/`.
   leaves the legend charts the least plot on narrow phones. The strength
   page's `.chart-small` is 220 px, and 200 px on phones too, to match the
   other pages. Its group tabs (`.tabs`, `.tab`) are underlined links,
-  the shown group bold in blue (the active tab names the group). Chart
+  the shown group bold in blue (the active tab names the group).
+  Nav (2026-11-08): links in grey (`#555`, no underline), the current
+  page a filled pill in bold accent blue on a light tint of it,
+  marked `aria-current="page"` (set from `request.endpoint` in
+  `base.html`). Chosen over an underline bar like the tabs (two
+  stacked underlined rows on the strength page looked alike) and over
+  colour and weight only (too weak a cue, lighter than the tabs): pill
+  for the page, underline for the group, so the two levels differ.
+  Blue because the chart accent sets the theme; a grey pill (data
+  alone in colour) and other Okabe–Ito colours (sky blue and orange
+  about 2:1 on white, vermillion below AA and reads as a warning, the
+  rest are status colours) were compared and not taken. Chart
   titles are drawn by the chart (ECharts `title`, left as ECharts places
   it), not as `<h2>`/`<h3>` headings (2026-10-28), with a subtitle under
   each: the latest value and how long ago it was (`75.3 kg ·

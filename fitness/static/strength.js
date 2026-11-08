@@ -40,10 +40,7 @@ function plotExerciseTrendChart(element) {
     (point) => `PR ${point.max} kg`,
   );
   const option = buildChartOption(element, subtitle.text);
-  option.tooltip = {
-    trigger: "axis",
-    formatter: (params) => formatTrendTooltip(points, params),
-  };
+  option.tooltip.formatter = (params) => formatTrendTooltip(points, params);
   option.series = [
     {
       name: "Lightest set",

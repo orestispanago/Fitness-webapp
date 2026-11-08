@@ -12,9 +12,9 @@
 
 <body>
   <nav>
-    <a href="{{ url_for('fitness_page') }}">Fitness</a>
-    <a href="{{ url_for('running_page') }}">Running</a>
-    <a href="{{ url_for('strength_page') }}">Strength</a>
+    {% for endpoint, label in [("fitness_page", "Fitness"), ("running_page", "Running"), ("strength_page", "Strength")] %}
+    <a href="{{ url_for(endpoint) }}" {% if request.endpoint == endpoint %}aria-current="page"{% endif %}>{{ label }}</a>
+    {% endfor %}
     <form class="sync-form" method="post" action="{{ url_for('sync') }}">
       <input type="hidden" name="next" value="{{ request.path }}">
       <button type="submit">↻ Sync</button>
