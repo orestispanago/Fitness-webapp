@@ -58,6 +58,11 @@ nav a {
     height: 200px;
   }
 
+  /* Taller for the Efficiency Factor chart, whose legend takes 3 rows */
+  .chart.chart-legend {
+    height: 260px;
+  }
+
   .chart-grid-large h2 {
     font-size: 1em;
     margin: 8px 0 4px;

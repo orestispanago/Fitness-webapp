@@ -6,47 +6,50 @@ function formatPace(secondsPerKm) {
   return `${minutes}:${seconds}`;
 }
 
-function plotPaceChart() {
-  const canvas = document.getElementById("pace-chart");
-  const scales = buildDailyScales();
-  scales.y.ticks = { callback: (value) => formatPace(value) };
-  return new Chart(canvas, {
-    type: "line",
-    data: {
-      datasets: [{
-        label: "Pace",
-        data: JSON.parse(canvas.dataset.points),
-      }],
-    },
-    options: {
-      maintainAspectRatio: false,
-      interaction: { mode: "index", intersect: false },
-      scales: scales,
-      plugins: {
-        legend: { display: false },
-        title: buildTitle(canvas),
-        subtitle: buildSubtitle(canvas, (value) => `${formatPace(value)} /km`),
-        tooltip: {
-          callbacks: {
-            label: (context) => `Pace: ${formatPace(context.parsed.y)} /km`,
-          },
-        },
-      },
-    },
-  });
+// [date, value] pairs from {x, y} points
+function buildPairs(points) {
+  const pairs = [];
+  for (const point of points) {
+    pairs.push([point.x, point.y]);
+  }
+  return pairs;
 }
 
-// Colour per run_type (see SPEC.md); types missing here show in grey
-const RUN_TYPE_COLORS = {
-  // Same blue as the base-HR pace line
-  "Base-HR": SERIES_BLUE,
-  Threshold: "#eb6834",
-  Base: "#1baf7a",
-  Sprint: "#eda100",
-  Recovery: "#e87ba4",
-  "Threshold-HR": "#6250d6",
-};
-const OTHER_RUN_COLOR = "#8a8985";
+function formatPaceTooltip(params) {
+  const pair = params[0].value;
+  return `${pair[0]}<br>Pace: ${formatPace(pair[1])} /km`;
+}
+
+function plotPaceChart() {
+  const element = document.getElementById("pace-chart");
+  const subtitle = buildSubtitle(element, (value) => `${formatPace(value)} /km`);
+  const chart = echarts.init(element);
+  chart.setOption({
+    title: { text: element.dataset.title, subtext: subtitle.text },
+    // Kept inside the chart, so it doesn't run off a phone screen
+    tooltip: { trigger: "axis", formatter: formatPaceTooltip, confine: true },
+    // At least a month between ticks, so day and month labels don't collide
+    xAxis: { type: "time", minInterval: 28 * 24 * 3600 * 1000 },
+    // Smaller bottom margin than the default, for a taller plot
+    grid: { top: 60, bottom: 30 },
+    yAxis: {
+      type: "value",
+      scale: true,
+      // About 3 intervals rather than 5, so labels don't crowd
+      splitNumber: 3,
+      axisLabel: { formatter: (value) => formatPace(value) },
+    },
+    series: [{
+      name: "Pace",
+      type: "line",
+      data: buildPairs(JSON.parse(element.dataset.points)),
+    }],
+  });
+  return chart;
+}
+
+// Run types in legend order (see SPEC.md); free runs (null) last
+const RUN_TYPES = ["Base-HR", "Threshold", "Base", "Sprint", "Recovery", "Threshold-HR"];
 const FREE_RUN_LABEL = "Free run";
 // Runs here (or without a location) are circles, elsewhere triangles
 const HOME_LOCATION = "Jeddah";
@@ -59,19 +62,6 @@ function getRunShape(run) {
   return shape;
 }
 
-// Triangles cover less area than circles of the same radius
-function getRunRadius(run) {
-  let radius = 3;
-  if (getRunShape(run) === "triangle") {
-    radius = 5;
-  }
-  return radius;
-}
-
-function getRunTypeColor(type) {
-  return RUN_TYPE_COLORS[type] || OTHER_RUN_COLOR;
-}
-
 function getRunTypeLabel(type) {
   let label = type;
   if (type === null) {
@@ -80,10 +70,10 @@ function getRunTypeLabel(type) {
   return label;
 }
 
-// Run types in legend order: the colour map's order, then types missing
-// from it (in order of first appearance), then free runs (null)
+// Run types in legend order: RUN_TYPES, then types missing from it (in
+// order of first appearance), then free runs (null)
 function listRunTypes(runs) {
-  const types = Object.keys(RUN_TYPE_COLORS);
+  const types = RUN_TYPES.slice();
   for (const run of runs) {
     if (run.type !== null && !types.includes(run.type)) {
       types.push(run.type);
@@ -106,95 +96,96 @@ function groupRunsByType(runs) {
   return groups;
 }
 
-function buildRunTypeDataset(type, runs) {
-  const radii = [];
-  const hoverRadii = [];
-  const shapes = [];
+// One scatter series per run type; the whole run rides along for the tooltip
+function buildRunTypeSeries(type, runs) {
+  const data = [];
   for (const run of runs) {
-    radii.push(getRunRadius(run));
-    hoverRadii.push(getRunRadius(run) + 1);
-    shapes.push(getRunShape(run));
+    data.push({ value: [run.x, run.y], symbol: getRunShape(run), run: run });
   }
   return {
-    label: `${getRunTypeLabel(type)} (${runs.length})`,
-    data: runs,
-    backgroundColor: getRunTypeColor(type),
-    borderWidth: 0,
-    pointRadius: radii,
-    pointHoverRadius: hoverRadii,
-    pointStyle: shapes,
+    name: `${getRunTypeLabel(type)} (${runs.length})`,
+    type: "scatter",
+    data: data,
   };
 }
 
-// One dataset per run type that has runs, in listRunTypes order
-function buildRunTypeDatasets(runs) {
+// One series per run type that has runs, in listRunTypes order
+function buildRunTypeSeriesList(runs) {
   const groups = groupRunsByType(runs);
-  const datasets = [];
+  const seriesList = [];
   for (const type of listRunTypes(runs)) {
     const typeRuns = groups[String(type)];
     if (typeRuns === undefined) {
       continue;
     }
-    datasets.push(buildRunTypeDataset(type, typeRuns));
+    seriesList.push(buildRunTypeSeries(type, typeRuns));
   }
-  return datasets;
+  return seriesList;
 }
 
-function formatRunTooltip(context) {
-  const run = context.raw;
-  return [`${run.name}`,
-  `${run.y} m/beat`,
-  `${formatPace(run.pace)} / km at ${run.hr} bpm`];
-}
-
-// The date, then the weather below it when the run has a report
-function formatRunTooltipTitle(items) {
-  const run = items[0].raw;
-  const lines = [items[0].label];
+// The date, the weather when the run has a report, then the run
+function formatRunTooltip(params) {
+  const run = params.data.run;
+  const lines = [run.x];
   if (run.temp !== null) {
     lines.push(`${Math.round(run.temp)} °C, feels ${Math.round(run.feels)} °C, ` +
       `${run.humidity}% RH`);
   }
-  return lines;
+  lines.push(run.name);
+  lines.push(`${run.y} m/beat`);
+  lines.push(`${formatPace(run.pace)} / km at ${run.hr} bpm`);
+  return lines.join("<br>");
 }
 
 function plotMetresPerBeatChart() {
-  const canvas = document.getElementById("metres-per-beat-chart");
-  const runs = JSON.parse(canvas.dataset.points);
-  // Grey line joining all runs in date order
+  const element = document.getElementById("metres-per-beat-chart");
+  const runs = JSON.parse(element.dataset.points);
+  // Line joining all runs in date order; no tooltip or legend entry
   const path = {
-    data: runs,
-  };
-  const datasets = [path];
-  for (const dataset of buildRunTypeDatasets(runs)) {
-    datasets.push(dataset);
-  }
-  return new Chart(canvas, {
     type: "line",
-    data: { datasets: datasets },
-    options: {
-      maintainAspectRatio: false,
-      scales: buildDailyScales(),
-      plugins: {
-        title: buildTitle(canvas),
-        subtitle: buildSubtitle(canvas),
-        crosshair: { horizontal: true },
-        legend: {
-          labels: {
-            usePointStyle: true,
-            pointStyle: "circle",
-            // No legend entry for the path
-            filter: (item) => item.datasetIndex > 0,
-          },
-        },
-        tooltip: {
-          filter: (item) => item.datasetIndex > 0,
-          callbacks: { title: formatRunTooltipTitle, label: formatRunTooltip },
-        },
+    data: buildPairs(runs),
+    symbol: "none",
+    silent: true,
+    tooltip: { show: false },
+  };
+  const seriesList = [path];
+  for (const series of buildRunTypeSeriesList(runs)) {
+    seriesList.push(series);
+  }
+  const chart = echarts.init(element);
+  chart.setOption({
+    baseOption: {
+      title: { text: element.dataset.title, subtext: buildSubtitle(element).text },
+      tooltip: { formatter: formatRunTooltip, confine: true },
+      // Compact legend below the plot
+      legend: {
+        bottom: 0,
+        itemWidth: 10,
+        itemHeight: 10,
+        itemGap: 8,
+        textStyle: { fontSize: 11 },
       },
+      // At least a month between ticks, so day and month labels don't collide
+      xAxis: { type: "time", minInterval: 28 * 24 * 3600 * 1000 },
+      grid: { top: 60 },
+      // About 3 intervals rather than 5, so labels don't crowd
+      yAxis: { type: "value", scale: true, splitNumber: 3 },
+      series: seriesList,
     },
+    // ECharts reserves no room for the legend: 2 rows on a phone, 1 wider
+    media: [
+      { query: { maxWidth: 500 }, option: { grid: { bottom: 70 } } },
+      { option: { grid: { bottom: 55 } } },
+    ],
   });
+  return chart;
 }
 
-plotPaceChart();
-plotMetresPerBeatChart();
+const charts = [plotPaceChart(), plotMetresPerBeatChart()];
+
+// ECharts doesn't follow its container's size by itself
+window.addEventListener("resize", () => {
+  for (const chart of charts) {
+    chart.resize();
+  }
+});

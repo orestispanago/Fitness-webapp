@@ -7,17 +7,14 @@
 
 <div class="chart-grid chart-grid-large">
   <div>
-    <div class="chart">
-      <canvas id="metres-per-beat-chart" data-title="Efficiency Factor (all runs)" data-unit="m/beat"
-        data-points='{{ metres_per_beat | tojson }}'></canvas>
-    </div>
+    <div class="chart chart-legend" id="metres-per-beat-chart" data-title="Efficiency Factor (all runs)" data-unit="m/beat"
+      data-points='{{ metres_per_beat | tojson }}'></div>
   </div>
   <div>
-    <div class="chart">
-      <canvas id="pace-chart" data-title="Pace (base-HR runs)" data-points='{{ pace | tojson }}'></canvas>
-    </div>
+    <div class="chart" id="pace-chart" data-title="Pace (base-HR runs)" data-points='{{ pace | tojson }}'></div>
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/echarts@6.0.0/dist/echarts.min.js"></script>
 <script src="{{ url_for('static', filename='running.js') }}"></script>
 {% endblock %}
