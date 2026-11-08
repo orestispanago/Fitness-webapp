@@ -3,7 +3,6 @@
 {% block title %}Fitness{% endblock %}
 
 {% block content %}
-<h1>Fitness</h1>
 
 <div class="chart-grid chart-grid-large">
   <div>
@@ -15,8 +14,8 @@
       data-average='{{ weight_avg | tojson }}'></div>
   </div>
   <div>
-    <div class="chart" id="vo2max-chart" data-title="VO2 max" data-unit="ml/kg/min"
-      data-points='{{ vo2max | tojson }}'></div>
+    <div class="chart" id="vo2max-chart" data-title="VO2 max" data-unit="ml/kg/min" data-points='{{ vo2max | tojson }}'>
+    </div>
   </div>
   <div>
     <div class="chart" id="acwr-chart" data-title="ACWR acute:chronic ratio" data-points='{{ acwr | tojson }}'></div>

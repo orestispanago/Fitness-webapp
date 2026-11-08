@@ -3,12 +3,11 @@
 {% block title %}Running{% endblock %}
 
 {% block content %}
-<h1>Running</h1>
 
 <div class="chart-grid chart-grid-large">
   <div>
-    <div class="chart chart-legend" id="metres-per-beat-chart" data-title="Efficiency Factor (all runs)" data-unit="m/beat"
-      data-points='{{ metres_per_beat | tojson }}'></div>
+    <div class="chart chart-legend" id="metres-per-beat-chart" data-title="Efficiency Factor (all runs)"
+      data-unit="m/beat" data-points='{{ metres_per_beat | tojson }}'></div>
   </div>
   <div>
     <div class="chart" id="pace-chart" data-title="Pace (base-HR runs)" data-points='{{ pace | tojson }}'></div>
