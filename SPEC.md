@@ -29,15 +29,14 @@ charts, built incrementally, one vertical slice at a time.
   slice, then the rest): one small chart per exercise in that group, x = session date,
   a line for the average weight across that exercise's sets in the
   session and a shaded band from the lightest to the heaviest set (the
-  band's top is the heaviest set), plus a dashed line across the chart
-  at the last session's heaviest set, so earlier sessions read against
-  where you are now (`createLatestMaxPlugin`; chosen over a dot on that
-  point, the number in the title or drawn on the chart, 2026-10-27).
-  Line and band take the session group's colour
-  (`SESSION_COLORS` in `strength.js`, in group order: S1 blue, S2 orange,
-  S3 green, S4 purple, then yellow and pink; any further group grey, not
-  a repeated colour), chosen over one colour for all, an accent on each
-  group's main lift only, and record markers on the heaviest set. One chart per exercise, not one chart
+  band's top is the heaviest set). The subtitle gives the PR: the
+  heaviest set and how long ago it was first reached (`findRecordPoint`;
+  none if no session beat the first one). It replaced (2026-10-29) a
+  dashed line across the chart at the last session's heaviest set.
+  Line and band are in ECharts' default colours, the same for every
+  group; the per-group colours (`SESSION_COLORS`) were dropped with the
+  move to ECharts (2026-11-08), after comparing group-coloured lines and
+  bands on the real charts. One chart per exercise, not one chart
   per group with a line per exercise: on one kg axis the small lifts
   (kickback 7.5 → 12.5) flatten next to squat (65 → 90), and the
   average shows progress the heaviest set misses (kickback's heaviest
@@ -98,7 +97,7 @@ All three pages show full history only — no date range picker.
 - Strength activities without a `workoutId` (free sessions Garmin names
   just "Strength", 3 so far, two of them 1–2 accidental sets) — silently
   skipped, not an error.
-- Chart zoom/pan — hover tooltips only.
+- Chart zoom/pan — tap/hover tooltips only.
 - Database migrations / ORM — `fitness/schema.sql` is a one-time,
   idempotent initializer; schema changes are hand-edited directly in that
   file.
@@ -106,9 +105,18 @@ All three pages show full history only — no date range picker.
 ## Tech stack
 
 - Backend: Flask, server-rendered Jinja2 templates, minimal vanilla JS.
-- Charts: Chart.js via CDN, hover tooltips only, no zoom/pan. Date axes
-  use Chart.js's `time` scale (with `chartjs-adapter-date-fns`, also via
-  CDN) so sparse series are spaced by real dates, not evenly.
+- Charts: Apache ECharts 6.0.0 via CDN (`echarts.min.js`, the full
+  build), tap/hover tooltips only, no zoom/pan. Date axes use ECharts'
+  `time` axis, so sparse series are spaced by real dates, not evenly.
+  Moved from Chart.js on 2026-11-08 for its touch behaviour: Chart.js
+  opens a tooltip on `touchstart`, so a scroll that starts on a chart
+  opened one, and with no `mouseout` on a touch screen it stayed open
+  until a tap in an empty spot. ECharts opens a tooltip on a tap but not
+  on a scroll, and places it better. Costs: a bigger download (~1.1 MB
+  minified, ~360 KB gzipped, vs ~200 KB for Chart.js) and a rewrite of
+  every chart. Tried page by page (strength, running, then fitness one
+  chart at a time) with ECharts' defaults first, then adjusting only
+  what didn't work.
 - Storage: SQLite (`data/fitness.db`, gitignored),
   accessed via raw SQL (stdlib `sqlite3`) — no ORM.
 - Styling: bare-bones HTML/CSS, in `fitness/static/style.css`.
@@ -121,7 +129,7 @@ authenticated session and token cache (own token path, not
 
 ## Refresh behavior
 
-- A Sync button (`↻ Sync`, outlined in the charts' series blue, light
+- A Sync button (`↻ Sync`, outlined in blue (Chart.js's series blue), light
   blue fill on hover, faded while syncing) at the right end of the nav
   (in `base.html`, so on every page) runs the same `fitness.sync.main()` as the CLI, which still
   works. Added 2026-10-26.
@@ -247,8 +255,9 @@ in itself (`list_days_in_range` in `sync/common.py`); `training_load`'s API alre
 returns every day. Nulls render as gaps in the line charts.
 
 Rolling averages: resting HR, HRV and weight are charted as daily dots
-(no connecting line) plus a 7-day rolling-average line
-(`plotDailyAverageChart` in `charts.js`). The average is computed in Python
+(no connecting line; 6 px, Chart.js's size, rather than ECharts' 10 px
+default) plus a 7-day rolling-average line (`buildDailyAverageOption`
+in `fitness.js`). The average is computed in Python
 (`queries.daily.compute_rolling_average`, window `ROLLING_DAYS = 7`): for each stored
 day, the mean of the non-null values in the 7 calendar days ending on it
 (fewer values on sparse stretches, e.g. weight on days without a
@@ -258,12 +267,12 @@ HR 1.89 → 0.28 bpm, HRV 5.56 → 0.94 ms).
 
 | Table | Columns | Shape | Fetch |
 |---|---|---|---|
-| `vo2max` | `calendar_date` (PK), `vo2max_precise_value` (NOT NULL) | Sparse — only days Garmin computed a value | `get_max_metrics_range` (whole range in one request; list of entries, value at `generic.vo2MaxPreciseValue`, entries with null `generic` or value skipped). The API has no rating (Poor…Superior) field (`maxMetCategory` is 0, not a rating), so the page shades the Cooper Institute bands Garmin uses, for men aged 30–39 (`VO2MAX_BANDS` in `fitness.js`: Fair 40.5, Good 44, Excellent 48.3, Superior 54); switch to the 40–49 row at age 40. Points in the EXCELLENT band (48.3 ≤ value < 54) are drawn green (`highlightPoints`) |
+| `vo2max` | `calendar_date` (PK), `vo2max_precise_value` (NOT NULL) | Sparse — only days Garmin computed a value | `get_max_metrics_range` (whole range in one request; list of entries, value at `generic.vo2MaxPreciseValue`, entries with null `generic` or value skipped). The API has no rating (Poor…Superior) field (`maxMetCategory` is 0, not a rating), so the page shades the Cooper Institute bands Garmin uses, for men aged 30–39 (`VO2MAX_BANDS` in `fitness.js`: Fair 40.5, Good 44, Excellent 48.3, Superior 54; the same cut-offs as Garmin's manuals); switch to the 40–49 row at age 40. Bands in Garmin's gauge colours (2026-11-08, chosen over the earlier red/orange/yellow/green/blue by comparing both): Poor red, Fair orange, Good green, Excellent blue, Superior purple. The green highlight on EXCELLENT points was dropped (2026-11-08) as not needed: the band shows it |
 | `resting_hr` | `calendar_date` (PK), `resting_hr_bpm` (NOT NULL) | Sparse — days without a reading are absent | `get_rhr_daily` (list of `{calendarDate, value}`; value is a float, rounded to int). The library documents a ~1-year limit per request, so the range is fetched in ≤365-day windows (`split_date_windows` in `sync/common.py`) — one request today; more only once a bootstrap spans over a year |
-| `hrv` | `calendar_date` (PK), `hrv_value`, `hrv_status`, `baseline_low_upper`, `baseline_balanced_low`, `baseline_balanced_upper` (all nullable) | Dense — one row per day in range; null if no overnight reading | `get_hrv_data_range` → `hrvSummaries[i].lastNightAvg` (ms); missing days filled with null. The API rejects ranges over 366 days (400 error), so fetched in ≤365-day windows. Same response: `status` → `hrv_status` (`BALANCED`, `UNBALANCED`, `LOW`; Garmin's `NONE` while calibrating, the first 18 days, is stored as null, as for `training_load`), and `baseline.lowUpper` / `balancedLow` / `balancedUpper` → the three `baseline_*` columns (null while calibrating). Status is stored, not computed: the rule it follows (7-day average inside `balancedLow`–`balancedUpper`, edges included = BALANCED; outside = UNBALANCED; below `lowUpper` = LOW) matched all 99 days with a baseline but is inferred, not documented, LOW has never occurred, and recent days sit within 1 ms of the edge, where our own 7-day average (≤ 1.1 ms off Garmin's) could flip it. `weeklyAvg` and `baseline.markerValue` (Garmin's gauge position) are not stored. Page: the HRV chart draws the balanced range (green) and the strip down to `lowUpper` (yellow, dashed LOW limit) behind the dots and 7-day line (`addHrvBaseline` in `fitness.js`, from `queries.daily.load_hrv_baseline` via `data-baseline`); rings on the 7-day line mark days whose Garmin status isn't BALANCED (UNBALANCED orange, LOW red; 3 so far: 2026-10-17, -20, -21), so status is read from the line, never from single dots; the tooltip names Garmin's status for the day. Since status follows the 7-day average, a single night outside the band (e.g. 93 ms on 2026-09-14, average 82 inside 67–83) is still BALANCED. Added 2026-10-23 (DB rebuilt; strength tables still empty) |
-| `weight` | `calendar_date` (PK), `weight_kg` (NOT NULL) | Sparse — weigh-in days only; the chart line connects weigh-ins | `get_weight_snapshot` → `dateWeightList` (whole range in one request, no limit observed). `weight` is in grams → kg (2 dp). `sourceType == "USER_SETTING"` entries (the weight from Garmin profile settings, not a weigh-in) are skipped. Several weigh-ins on one day → latest by `timestampGMT` |
-| `sleep` | `calendar_date` (PK), `sleep_duration_minutes` (nullable), `sleep_need_minutes` (NOT NULL) | Sparse — recorded nights only (a missed night has no entry at all, so there's no need value to store; the chart shows no bar for it). Duration stays nullable in case Garmin sends a night with a need but no duration; none so far | `get_sleep_daily` → `values.totalSleepTimeInSeconds` (→ minutes, rounded) and `values.sleepNeed` (already minutes); entries without `sleepNeed` skipped. The library splits ranges into 28-day requests itself. Charted as one bar per night (`queries.daily.load_sleep_shortfall`): duration minus need, in minutes, red below zero (short of need), green above, darker grid line at zero, plus a 7-day rolling-average line on top (`queries.daily.compute_rolling_average`, as for resting HR/HRV/weight), in Chart.js's default blue rather than the pink-red of the other averages, which blends into the red bars. Each point also carries the night's sleep (`slept`, minutes), so the tooltip shows `-51 min (slept 6:59)` (`formatMinutes` in `fitness.js`) and the average (`7-day average: -68 min`). Replaces an earlier two-line chart (sleep, dashed sleep need, in hours): the need is ~470 min almost every night, so the flat need line added little, while the gap to it is what matters (short on 88 of 116 nights, by 63 min on average) |
-| `training_load` | `calendar_date` (PK), `acwr_status`, `acute_load`, `chronic_load`, `acwr_ratio` (all nullable) | Dense — the API returns every day; all four columns nulled together when `acwrStatus == "NONE"` (onboarding, 06-28 to 07-03). `acwr_ratio` can also be null on days that do have a status (07-04 to 07-10); stored as Garmin reports it, not recomputed (Garmin's ratio isn't a plain acute/chronic division) | `get_weekly_training_status` → `reportData[<deviceId>][i].acuteTrainingLoadDTO`: `acwrStatus`, `dailyTrainingLoadAcute`, `dailyTrainingLoadChronic`, `dailyAcuteChronicWorkloadRatio`. Whole range in one request, no limit observed. Entries with `primaryTrainingDevice == false` skipped. Page: a `plotDailyLineChart` of the ratio, with shaded status bands behind it (LOW < 0.8, OPTIMAL 0.8–1.5, HIGH ≥ 1.5; `ACWR_BANDS` in `fitness.js`). The cut-offs are inferred from the data — every stored status matches them — not from Garmin documentation; a VERY HIGH status (sports-science literature uses > 2.0) has never been observed, so it has no band yet. The y-axis uses `suggestedMax: 1.7` so the HIGH band is always visible. Points with a ratio in the HIGH band (≥ 1.5, read from `ACWR_BANDS`) are drawn red (`highlightPoints`). Considered and not built (2026-10-25): a daily training-load bar chart under ACWR (per-activity `activityTrainingLoad`, stacked by type) to explain its peaks and dips — the ACWR chart is enough as it is |
+| `hrv` | `calendar_date` (PK), `hrv_value`, `hrv_status`, `baseline_low_upper`, `baseline_balanced_low`, `baseline_balanced_upper` (all nullable) | Dense — one row per day in range; null if no overnight reading | `get_hrv_data_range` → `hrvSummaries[i].lastNightAvg` (ms); missing days filled with null. The API rejects ranges over 366 days (400 error), so fetched in ≤365-day windows. Same response: `status` → `hrv_status` (`BALANCED`, `UNBALANCED`, `LOW`; Garmin's `NONE` while calibrating, the first 18 days, is stored as null, as for `training_load`), and `baseline.lowUpper` / `balancedLow` / `balancedUpper` → the three `baseline_*` columns (null while calibrating). Status is stored, not computed: the rule it follows (7-day average inside `balancedLow`–`balancedUpper`, edges included = BALANCED; outside = UNBALANCED; below `lowUpper` = LOW) matched all 99 days with a baseline but is inferred, not documented, LOW has never occurred, and recent days sit within 1 ms of the edge, where our own 7-day average (≤ 1.1 ms off Garmin's) could flip it. `weeklyAvg` and `baseline.markerValue` (Garmin's gauge position) are not stored. Page: the HRV chart draws the balanced range (green) and the strip down to `lowUpper` (yellow, dashed LOW limit) behind the dots and 7-day line, as stacked areas (`buildHrvBaselineSeries` in `fitness.js`, from `queries.daily.load_hrv_baseline` via `data-baseline`; ECharts has no fill between two lines); no legend (ECharts' default); rings on the 7-day line mark days whose Garmin status isn't BALANCED (UNBALANCED orange, LOW red; 3 so far: 2026-10-17, -20, -21), so status is read from the line, never from single dots; the tooltip names Garmin's status for the day. Since status follows the 7-day average, a single night outside the band (e.g. 93 ms on 2026-09-14, average 82 inside 67–83) is still BALANCED. Added 2026-10-23 (DB rebuilt; strength tables still empty) |
+| `weight` | `calendar_date` (PK), `weight_kg` (NOT NULL) | Sparse — weigh-in days only; the chart line connects weigh-ins | `get_weight_snapshot` → `dateWeightList` (whole range in one request, no limit observed). `weight` is in grams → kg (2 dp). `sourceType == "USER_SETTING"` entries (the weight from Garmin profile settings, not a weigh-in) are skipped. Several weigh-ins on one day → latest by `timestampGMT`. Page: dots plus 7-day line, with the creatine marker (`WEIGHT_MARKERS`) as an ECharts `markLine`, its label running along the line inside the plot (`insideEndTop`) and no end symbols; chosen 2026-11-08 over a larger top margin, a horizontal label drawn with `graphic` and no label, since the default label sat on the subtitle |
+| `sleep` | `calendar_date` (PK), `sleep_duration_minutes` (nullable), `sleep_need_minutes` (NOT NULL) | Sparse — recorded nights only (a missed night has no entry at all, so there's no need value to store; the chart shows no bar for it). Duration stays nullable in case Garmin sends a night with a need but no duration; none so far | `get_sleep_daily` → `values.totalSleepTimeInSeconds` (→ minutes, rounded) and `values.sleepNeed` (already minutes); entries without `sleepNeed` skipped. The library splits ranges into 28-day requests itself. Charted as one bar per night (`queries.daily.load_sleep_shortfall`): duration minus need, in minutes, pink (`#fb628b`) below zero (short of need), teal (`#3fbe95`) above — both from ECharts' default palette, chosen 2026-11-08 over the earlier tomato red/green and other palette pairs; plain default colours (one colour for all bars) were tried and rejected, as the sign should show in the colour — plus a 7-day rolling-average line on top (`queries.daily.compute_rolling_average`, as for resting HR/HRV/weight), in ECharts' default series colour. Each point also carries the night's sleep (`slept`, minutes), so the tooltip shows `-51 min (slept 6:59)` (`formatMinutes` in `fitness.js`) and the average (`7-day average: -68 min`). Replaces an earlier two-line chart (sleep, dashed sleep need, in hours): the need is ~470 min almost every night, so the flat need line added little, while the gap to it is what matters (short on 88 of 116 nights, by 63 min on average) |
+| `training_load` | `calendar_date` (PK), `acwr_status`, `acute_load`, `chronic_load`, `acwr_ratio` (all nullable) | Dense — the API returns every day; all four columns nulled together when `acwrStatus == "NONE"` (onboarding, 06-28 to 07-03). `acwr_ratio` can also be null on days that do have a status (07-04 to 07-10); stored as Garmin reports it, not recomputed (Garmin's ratio isn't a plain acute/chronic division) | `get_weekly_training_status` → `reportData[<deviceId>][i].acuteTrainingLoadDTO`: `acwrStatus`, `dailyTrainingLoadAcute`, `dailyTrainingLoadChronic`, `dailyAcuteChronicWorkloadRatio`. Whole range in one request, no limit observed. Entries with `primaryTrainingDevice == false` skipped. Page: a line of the ratio (`plotAcwrChart`), with shaded status bands behind it (LOW < 0.8, OPTIMAL 0.8–1.5, HIGH ≥ 1.5; `ACWR_BANDS` in `fitness.js`). The cut-offs are inferred from the data — every stored status matches them — not from Garmin documentation; a VERY HIGH status (sports-science literature uses > 2.0) has never been observed, so it has no band yet. The y-axis reaches at least 1.7 (`getAcwrAxisMax`) so the HIGH band is always visible. Points with a ratio in the HIGH band (≥ 1.5, read from `ACWR_BANDS`) are drawn as 6 px red dots (`buildHighlightedPairs`); kept on 2026-11-08 after comparing with no highlight (unlike VO2max's). Considered and not built (2026-10-25): a daily training-load bar chart under ACWR (per-activity `activityTrainingLoad`, stacked by type) to explain its peaks and dips — the ACWR chart is enough as it is |
 | `calories` | `calendar_date` (PK), `active_kcal` (nullable), `resting_kcal` (NOT NULL) | Sparse — days without data are absent. Daily totals, not per activity (the activity list's `calories` / `bmrCalories` are not stored). Resting is BMR, estimated from the profile, so a null could only be a bug; active stays nullable in case Garmin sends a day with BMR but no movement data (none so far: 131 days from `FIRST_DATA_DATE` with both values, no gaps). The day in progress is partial (resting 1540 on 2026-11-05 vs. ~1830–1934 on full days) and is re-fetched by the shared policy | `get_calories_daily` (same wellness-stats endpoint as `get_rhr_daily`, metric IDs 22 active, 23 BMR; so ≤365-day windows, as for `resting_hr`) → `active`, `resting` (floats, always whole; rounded to int). The library's `total` (its own `active + resting`, with a missing value counted as 0) is not stored; total is derived when needed. Chosen over `get_daily_stats(…, "CALORIES")` (Garmin's own total, range limit untested) and per-day `get_user_summary` (one request per day) for consistency with `resting_hr`. Not charted yet (2026-11-06) |
 
 ### Running page (1 table)
@@ -277,16 +286,30 @@ location), while metres per heartbeat across all runs shows the trend
 for every run type (0.87–0.95 in early July, 0.99–1.07 in Sep–Oct).
 Each point also carries name, location, type, pace, HR and weather for
 the tooltip; the weather goes on a line below the date, rounded to whole
-°C and %, and is left out for a run without a report. A thin grey line joins the runs in date order. Colour =
-`run_type`, from a fixed map in `running.js` (`RUN_TYPE_COLORS`, like
-`ACWR_BANDS`): `Base-HR` blue (`SERIES_BLUE`, as on the pace line), `Threshold` orange, `Base` aqua,
-`Sprint` yellow, `Recovery` magenta, `Threshold-HR` violet; null shows
-as "Free run" in grey, and a type missing from the map also shows grey,
-under its own name — the cue to add it. Shape = location:
-`HOME_LOCATION = "Jeddah"` (and runs without a location) as circles, any
-other location as triangles. Seven colours in a scatter are near the
-limit of what's easy to tell apart (yellow/orange especially); the
-tooltip names every run.
+°C and %, and is left out for a run without a report.
+
+All runs are one grey line with points (`buildAllRunsSeries`, legend
+"All runs"), and three groups are drawn on top as 8 px coloured points in
+ECharts' default colours (`HIGHLIGHTS` in `running.js`, matched on
+`run_type`, else `location`): `Base-HR` (12 runs so far), `Threshold-HR`
+(3) and `Laganas` (3; all Laganas runs are other types, so no run is in
+two groups). Chosen 2026-11-08 over 3 groups (Base-HR, Free run, other
+workouts), Base-HR alone, and one line with every point coloured by type
+and no legend. It replaced one series per run type (7 colours, 7 legend
+entries for 39 runs, 3 types with 1–2 runs) plus shapes for location,
+which took 3 legend rows on a phone and needed extra tooltip code, since
+an axis tooltip takes the nearest point of every series. Only the grey
+line carries the tooltip, so it gives one run per date, as on the pace
+chart; the run name still gives the type and location. Tapping the "All
+runs" legend entry hides the grey line.
+
+The legend sits below the plot in a compact style (10 px symbols, 11 px
+text). ECharts reserves no room for a legend, so the bottom margin is set
+by width with ECharts' `media` option: 75 px below 500 px wide (2 legend
+rows on a phone), 55 px wider. On phones this chart is 260 px tall
+(`.chart-legend`), not 200, to give the plot back the legend's room.
+Chosen 2026-11-08 over the legend between subtitle and plot, a one-row
+scrolling legend and no legend.
 
 | Table | Columns | Notes |
 |---|---|---|
@@ -320,8 +343,7 @@ All paths below are inside `fitness/`.
   `sync_*` (all three), `find_*` (DB lookup during sync), `load_*` (DB
   read for a chart), `compute_*` (a calculation), `build_*` (assemble a
   data structure), `format_*` (to display text); in JS `plot…` (draws a
-  chart now), `create…Plugin` (a Chart.js plugin, run later), `get…`
-  (a lookup), `build…`, `format…`. Exceptions: Flask route functions
+  chart now), `get…` (a lookup), `build…`, `format…`. Exceptions: Flask route functions
   (`<page>_page`, `index`, `sync`), `main`, `init_app`. The JS follows the same
   style rules as the Python (no ternaries, explicit `for` loops instead
   of `.map`/`.filter`/`.forEach`, one `return` per function).
@@ -347,9 +369,7 @@ All paths below are inside `fitness/`.
   `load_strength_sets`; the tabs come from `list_session_labels`,
   `choose_group` picks the shown group (`find_latest_label` when none
   or an unknown one is asked for), and `filter_group_rows` →
-  `build_exercise_trends` → `group_set_weights` build its charts. The
-  chart colour is the group's position in all labels
-  (`labels.index(selected)` in the template), not on the page.
+  `build_exercise_trends` → `group_set_weights` build its charts.
 - `init_db.py` — separate setup command that applies `schema.sql`.
   Run once, and again after editing the schema. `sync/` and `db.py`
   open the DB in `mode=rw`, so they fail loudly instead of silently
@@ -395,7 +415,7 @@ All paths below are inside `fitness/`.
     cascades). Activity tables, which only add rows that don't exist
     yet, use `store_new` (`INSERT OR IGNORE`).
 - Templates: `base.html` holds the shared skeleton (doctype, head, the
-  stylesheet link, the Chart.js CDN scripts, nav between the pages,
+  stylesheet link, the ECharts CDN script, nav between the pages,
   the Sync button) with a `{% block content %}`; one template per page (`fitness.html`,
   `running.html`, `strength.html`) extends it. Templates contain no
   inline JS or CSS.
@@ -403,99 +423,106 @@ All paths below are inside `fitness/`.
   is capped at 1400 px (was 960, which left a laptop screen mostly
   margin). Fitness and running charts sit in `.chart-grid
   .chart-grid-large` (`auto-fill`, `minmax(min(480px, 100%), 1fr)`): 2
-  per row on a laptop, 1 on a phone; each grid item is the `<h2>` plus
-  its chart. Fitness charts are ordered in related pairs: sleep
-  shortfall | weight, VO2max | ACWR, resting HR | HRV. The strength page's
-  280 px `.chart-grid` gets 4 columns at full width (3 before the cap
-  was raised). Below 600 px wide (phones) `.chart` is 200 px tall
-  instead of 320 (was 400, then 280: still too tall; 200 is about the
-  height of the Garmin app's phone charts). Also on phones, like the
-  Garmin app: fitness and running `<h2>`s shrink to 1em with 8 px / 4 px
-  margins (the strength page's `h3` style; browser default was ~70 px a
-  heading) and the gap below each chart is 16 px instead of 32. Fixed px
+  per row on a laptop, 1 on a phone. Fitness charts are ordered in
+  related pairs: sleep shortfall | weight, VO2max | ACWR, resting HR |
+  HRV. The strength page's 280 px `.chart-grid` gets 4 columns at full
+  width (3 before the cap was raised; wider charts, i.e. 3 per row, were
+  compared and not taken, 2026-11-08). Below 600 px wide (phones)
+  `.chart` is 200 px tall instead of 320 (was 400, then 280: still too
+  tall; 200 is about the height of the Garmin app's phone charts), and
+  the gap below each chart is 16 px instead of 32; the Efficiency Factor
+  chart is 260 px (`.chart-legend`, see the running page). Fixed px
   rather than an aspect ratio: legends take a fixed height, so a ratio
   leaves the legend charts the least plot on narrow phones. The strength
   page's `.chart-small` is 220 px, and 200 px on phones too, to match the
   other pages. Its group tabs (`.tabs`, `.tab`) are underlined links,
-  the shown group bold in the series blue (no `<h2>` per group: the
-  active tab names it). One JS file per
-  page (`static/fitness.js`, `static/running.js`, `static/strength.js`),
-  loaded at the end of that page's template, plus `static/charts.js`
-  with helpers shared by every page, loaded from `base.html` after
-  Chart.js; and `static/sync.js` for the nav's Sync button, loaded at the
-  end of `base.html`. `charts.js` holds:
-  - Compact legends for every chart (`Chart.defaults`: 12 px boxes,
-    11 px font), so the HRV and metres-per-heartbeat legends take 2
-    rows on a phone instead of 3 and 2 taller ones. Square boxes kept
-    rather than `usePointStyle`, so HRV's dashed LOW-limit entry stays
-    dashed.
-  - `buildDailyScales()` — real-date x-axis, untitled y-axis (no y-axis
-    titles, to give phones more plot width; units go in the page's
-    `<h2>` headings, e.g. "Weight (kg)").
-  - `plotDailyLineChart(canvasId, label, plugins)` — single-series
-    line chart (nulls as gaps), optional Chart.js plugins.
-  - `STATUS_COLORS` / `getStatusColor(name, alpha)` — the one set of status
-    colours (green, yellow, orange, red, blue) for bands, highlighted
-    points, sleep bars and HRV band/rings; every chart takes them from
-    here. Series (lines, dots) keep Chart.js's default colours (blue
-    data, pink-red 7-day averages; sleep's average is blue, see `sleep`).
-    The status set is Chart.js's yellow, orange and blue plus a green
-    (75, 192, 92) and a tomato red (255, 99, 71) that differ from
-    Chart.js's teal and pink-red on purpose: the pink-red is the average
-    line colour, and the teal is too close to the series blue for a
-    single highlighted point to show (the one EXCELLENT VO2max point
-    vanished). Chosen over a colour-blind-validated palette and over pure
-    Chart.js defaults by comparing all three on the real charts.
-  - `GREYS` — the greys for non-data marks, by role: `grid` and `label`
-    are Chart.js's own defaults (`Chart.defaults.borderColor`,
-    `Chart.defaults.color`); `guide` (25% black) for background edges and
-    joining lines (HRV band edges, the all-runs path); `strong` (50%
-    black) for lines meant to be noticed (sleep's zero line, date
-    markers).
-  - `SERIES_BLUE` — Chart.js's default 1st-series blue, for series that
-    set their colour explicitly (the sleep average, the `Base-HR` run
-    type), so base-HR runs are the same blue on every running chart.
-  - `plotDailyAverageChart(canvasId, label, plugins)` — daily
-    dots plus a 7-day average line, read from `data-points` and
-    `data-average`.
-  - `createBandsPlugin(bands)` — shades labelled horizontal ranges behind the
-    data (used for the ACWR status zones).
-  - `highlightPoints(chart, band, color)` — recolours the points whose
-    value falls in one band (`{ from, to }`, same shape as `createBandsPlugin`'s);
-    used for HIGH ACWR (red) and EXCELLENT VO2max (green).
-  - `createMarkersPlugin(markers)` — labelled dashed vertical lines at dates,
-    behind the data. Markers are hand-written constants in the page's JS
-    (`WEIGHT_MARKERS` in `fitness.js`: creatine 5 g/day from
-    2026-10-07), like `ACWR_BANDS`; move them to a table only if they
-    multiply or are needed on several charts.
-  - `CROSSHAIR_PLUGIN` — a thin solid `GREYS.guide` vertical line at the
-    tooltip's point, so a tap (on a phone) or hover shows where it is on
-    the x-axis. Registered once with `Chart.register`, so every chart
-    gets it, the strength and metres-per-heartbeat charts included.
-    Option `plugins.crosshair.horizontal` (default false) also draws a
-    horizontal line at the point's y (`active[0]`, i.e. the dataset
-    with the lowest `order`); the metres-per-heartbeat and sleep
-    shortfall charts turn it on. On the sleep chart that point is the
-    7-day average, not the bar, and the tooltip is placed there too
-    (`firstActive` positioner in `fitness.js`), so the line, the
-    average's hover dot and the tooltip meet at one point instead of
-    the tooltip floating between bar and average (Chart.js's default
-    `average` position).
+  the shown group bold in blue (the active tab names the group). Chart
+  titles are drawn by the chart (ECharts `title`, left as ECharts places
+  it), not as `<h2>`/`<h3>` headings (2026-10-28), with a subtitle under
+  each: the latest value and how long ago it was (`75.3 kg ·
+  yesterday`), or for HRV Garmin's latest status, for ACWR the latest
+  status band, and for strength the PR (2026-10-29). Units go in the
+  title or subtitle; no y-axis titles, to give phones more plot width.
 
-  All date charts use `interaction: { mode: "index", intersect: false }`,
-  so hovering anywhere shows the tooltip for the nearest date. Charts
-  that don't fit `plotDailyLineChart` (sleep shortfall as coloured bars;
-  pace with `m:ss` formatting) get their
-  own `new Chart(...)` reusing `buildDailyScales`. Page-specific helpers
-  (`ACWR_BANDS`, `VO2MAX_BANDS`, `formatMinutes`, `formatPace`) stay in the page's file
+  One JS file per page (`static/fitness.js`, `static/running.js`,
+  `static/strength.js`), loaded at the end of that page's template, plus
+  `static/charts.js` with helpers shared by every page, loaded from
+  `base.html` after ECharts; and `static/sync.js` for the nav's Sync
+  button, loaded at the end of `base.html`. `charts.js` holds:
+  - `buildChartOption(element, subtitleText)` — the frame every chart
+    starts from: title and subtitle, the axis tooltip, the date axis,
+    margins and y-axis; each chart adds its series and changes only what
+    differs (pace's `m:ss` y labels, ACWR's 1.7 minimum, the Efficiency
+    Factor legend and margins, strength's tooltip). Settings, all chosen
+    2026-11-08 from side-by-side comparisons on the real data:
+    - Tooltip `trigger: "axis"`: tapping anywhere shows the nearest
+      date, and ECharts draws its vertical crosshair, which hides with
+      the tooltip. A separate x-axis pointer was tried on the Efficiency
+      Factor chart and dropped: on a touch screen nothing hides it, so
+      it stayed after a tap. No horizontal crosshair (Chart.js's
+      `CROSSHAIR_PLUGIN` option is gone).
+    - `confine: true`, so a tooltip near a chart's edge stays inside the
+      chart instead of running off a phone screen. Strength sets its own
+      tooltip without it (its short tooltip hasn't been seen to
+      overflow).
+    - `grid: { top: 60, bottom: 30 }`: ECharts' default bottom margin
+      (60) left an empty strip under each chart and a plot only ~80 px
+      tall on a phone.
+    - y-axis `scale: true` (not forced to start at 0, as before) and
+      `splitNumber: 3` (about 3 intervals instead of ECharts' 5), so the
+      labels don't crowd. The count still varies (about 3–8 labels)
+      because ECharts rounds the step to 1, 2, 3 or 5 × 10ⁿ; accepted.
+  - `buildDateAxis()` — the x-axis of every chart: ECharts' `time` axis
+    with `minInterval` of 28 days, so it labels months only (its own
+    choice mixed day ticks with month labels, which collided, e.g.
+    "29" + "Sep"); chosen over hiding overlapping labels. Its
+    `axisPointer.label.formatter` sets the tooltip's date header (also
+    passed to custom tooltips as `axisValueLabel`), via `formatDate`:
+    "Sat, Nov 7", fixed US English, not the phone's language (2026-11-08,
+    chosen over "Nov 7, 2026", "Sat, Nov 7, 2026" and "Nov 7
+    (yesterday)": the weekday helps with training, and the year adds
+    little while the data spans months).
+  - `plotChart(element, option)` — creates the chart and keeps it in
+    `CHARTS`; one `resize` listener redraws them all, since ECharts
+    doesn't follow its container's size by itself.
+  - `buildPairs(points, key = "y")` — `{x, y}` points to the `[date,
+    value]` pairs ECharts takes.
+  - `STATUS_COLORS` / `getStatusColor(name, alpha)` — the status colours
+    (green, yellow, orange, red, blue, purple) for bands, highlighted
+    points and HRV's baseline and rings. Series (lines, dots, strength's
+    band, the Efficiency Factor highlights) keep ECharts' default
+    colours. The green (75, 192, 92) and tomato red (255, 99, 71) were
+    picked under Chart.js to differ from its teal and pink-red series
+    colours; purple (153, 102, 255) was added for VO2max's Superior.
+    Sleep's bars use two palette colours instead (see `sleep`).
+  - `GREYS.guide` (25% black) for background edges (HRV's baseline).
+  - Subtitles: `buildSubtitle(element, formatValue)` (latest value),
+    `buildDatedSubtitle(point, formatPoint)`, with `findLatestPoint`,
+    `countDaysAgo`, `formatDaysAgo`, `parseLocalDate` (a `YYYY-MM-DD`
+    as a local date, not UTC midnight).
+  - Bands: `isInBand`, `findBand`, `findBandForValue`, for
+    `{ from, to, label, color }` bands (`null` = open-ended).
+
+  In `fitness.js`: `buildDailyAverageOption` (dots + 7-day line: resting
+  HR, weight, HRV), `buildMarkArea(bands, lowest, highest)` (labelled
+  band shading with ECharts' `markArea`, label at the top-left; open
+  ends set to a value far outside the data, which doesn't stretch the
+  axis: VO2max 0/100, ACWR 0/10) and `buildMarkLine(markers)` (date
+  markers). Markers are hand-written constants in the page's JS
+  (`WEIGHT_MARKERS`: creatine 5 g/day from 2026-10-07), like
+  `ACWR_BANDS`; move them to a table only if they multiply or are
+  needed on several charts. Page-specific helpers (`ACWR_BANDS`,
+  `VO2MAX_BANDS`, `formatMinutes`, `formatPace`) stay in the page's file
   until another page needs them — same "wait for real duplication"
-  principle as `sync/`.
+  principle as `sync/`; the helpers above moved to `charts.js` once the
+  same code was on all three pages.
 - Chart data flow: a route calls `queries/`, which returns a plain
   Python data structure; the route passes it into the template context,
-  and the template puts it on the chart's `<canvas>` as a single-quoted
+  and the template puts it on the chart's `<div>` (ECharts draws into a
+  `<div>`, not a `<canvas>`) as a single-quoted
   `data-points='{{ ... | tojson }}'` attribute (Flask documents `tojson`
   as safe there). The page's JS file reads it with
-  `JSON.parse(canvas.dataset.points)`. No Jinja inside `<script>`, so
+  `JSON.parse(element.dataset.points)`. No Jinja inside `<script>`, so
   editors and formatters treat templates as plain HTML without breaking
   them. No JSON API endpoint, no client-side `fetch()` — nothing in this
   app needs data without a full page reload.
