@@ -61,9 +61,9 @@ function getRunShape(run) {
 
 // Triangles cover less area than circles of the same radius
 function getRunRadius(run) {
-  let radius = 5;
+  let radius = 3;
   if (getRunShape(run) === "triangle") {
-    radius = 7;
+    radius = 5;
   }
   return radius;
 }
@@ -112,7 +112,7 @@ function buildRunTypeDataset(type, runs) {
   const shapes = [];
   for (const run of runs) {
     radii.push(getRunRadius(run));
-    hoverRadii.push(getRunRadius(run) + 2);
+    hoverRadii.push(getRunRadius(run) + 1);
     shapes.push(getRunShape(run));
   }
   return {
