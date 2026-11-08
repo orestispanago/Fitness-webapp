@@ -7,7 +7,7 @@ ROLLING_DAYS = 7
 
 
 def load_daily_points(table, value_column):
-    """Chart.js {x: date, y: value} points for a daily table, oldest first."""
+    """{x: date, y: value} points for a daily table, oldest first."""
     # Identifiers are internal constants, never user input.
     rows = get_db().execute(
         f"SELECT calendar_date, {value_column} AS value"

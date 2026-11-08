@@ -1,14 +1,3 @@
-// ECharts spike: default ECharts styling (see SPEC.md for the Chart.js version)
-
-// [date, value] pairs from one key of each trend point ("min", "avg")
-function buildTrendSeries(points, key) {
-  const series = [];
-  for (const point of points) {
-    series.push([point.x, point[key]]);
-  }
-  return series;
-}
-
 // [date, max - min] pairs, stacked on the lightest set to draw the band
 function buildBandHeights(points) {
   const series = [];
@@ -21,7 +10,7 @@ function buildBandHeights(points) {
 function formatTrendTooltip(points, params) {
   const point = points[params[0].dataIndex];
   return [
-    point.x,
+    params[0].axisValueLabel,
     `Max ${point.max} kg`,
     `Average ${point.avg} kg`,
     `Min ${point.min} kg`,
@@ -50,55 +39,38 @@ function plotExerciseTrendChart(element) {
     findRecordPoint(points),
     (point) => `PR ${point.max} kg`,
   );
-  const chart = echarts.init(element);
-  chart.setOption({
-    title: { text: element.dataset.title, subtext: subtitle.text },
-    tooltip: {
-      trigger: "axis",
-      formatter: (params) => formatTrendTooltip(points, params),
+  const option = buildChartOption(element, subtitle.text);
+  option.tooltip = {
+    trigger: "axis",
+    formatter: (params) => formatTrendTooltip(points, params),
+  };
+  option.series = [
+    {
+      name: "Lightest set",
+      type: "line",
+      data: buildPairs(points, "min"),
+      stack: "band",
+      symbol: "none",
+      lineStyle: { opacity: 0 },
     },
-    // At least a month between ticks, so day and month labels don't collide
-    xAxis: { type: "time", minInterval: 28 * 24 * 3600 * 1000 },
-    // Smaller bottom margin than the default, for a taller plot
-    grid: { top: 60, bottom: 30 },
-    // About 3 intervals rather than 5, so labels don't crowd
-    yAxis: { type: "value", scale: true, splitNumber: 3 },
-    series: [
-      {
-        name: "Lightest set",
-        type: "line",
-        data: buildTrendSeries(points, "min"),
-        stack: "band",
-        symbol: "none",
-        lineStyle: { opacity: 0 },
-      },
-      {
-        name: "Heaviest set",
-        type: "line",
-        data: buildBandHeights(points),
-        stack: "band",
-        symbol: "none",
-        lineStyle: { opacity: 0 },
-        areaStyle: {},
-      },
-      {
-        name: "Average set",
-        type: "line",
-        data: buildTrendSeries(points, "avg"),
-      },
-    ],
-  });
-  return chart;
+    {
+      name: "Heaviest set",
+      type: "line",
+      data: buildBandHeights(points),
+      stack: "band",
+      symbol: "none",
+      lineStyle: { opacity: 0 },
+      areaStyle: {},
+    },
+    {
+      name: "Average set",
+      type: "line",
+      data: buildPairs(points, "avg"),
+    },
+  ];
+  return plotChart(element, option);
 }
 
-const charts = [];
 for (const element of document.querySelectorAll(".exercise-chart")) {
-  charts.push(plotExerciseTrendChart(element));
+  plotExerciseTrendChart(element);
 }
-
-// ECharts doesn't follow its container's size by itself
-window.addEventListener("resize", () => {
-  for (const chart of charts) {
-    chart.resize();
-  }
-});

@@ -6,46 +6,23 @@ function formatPace(secondsPerKm) {
   return `${minutes}:${seconds}`;
 }
 
-// [date, value] pairs from {x, y} points
-function buildPairs(points) {
-  const pairs = [];
-  for (const point of points) {
-    pairs.push([point.x, point.y]);
-  }
-  return pairs;
-}
-
 function formatPaceTooltip(params) {
-  const pair = params[0].value;
-  return `${pair[0]}<br>Pace: ${formatPace(pair[1])} /km`;
+  const pace = params[0].value[1];
+  return `${params[0].axisValueLabel}<br>Pace: ${formatPace(pace)} /km`;
 }
 
 function plotPaceChart() {
   const element = document.getElementById("pace-chart");
   const subtitle = buildSubtitle(element, (value) => `${formatPace(value)} /km`);
-  const chart = echarts.init(element);
-  chart.setOption({
-    title: { text: element.dataset.title, subtext: subtitle.text },
-    // Kept inside the chart, so it doesn't run off a phone screen
-    tooltip: { trigger: "axis", formatter: formatPaceTooltip, confine: true },
-    // At least a month between ticks, so day and month labels don't collide
-    xAxis: { type: "time", minInterval: 28 * 24 * 3600 * 1000 },
-    // Smaller bottom margin than the default, for a taller plot
-    grid: { top: 60, bottom: 30 },
-    yAxis: {
-      type: "value",
-      scale: true,
-      // About 3 intervals rather than 5, so labels don't crowd
-      splitNumber: 3,
-      axisLabel: { formatter: (value) => formatPace(value) },
-    },
-    series: [{
-      name: "Pace",
-      type: "line",
-      data: buildPairs(JSON.parse(element.dataset.points)),
-    }],
-  });
-  return chart;
+  const option = buildChartOption(element, subtitle.text);
+  option.tooltip.formatter = formatPaceTooltip;
+  option.yAxis.axisLabel = { formatter: (value) => formatPace(value) };
+  option.series = [{
+    name: "Pace",
+    type: "line",
+    data: buildPairs(JSON.parse(element.dataset.points)),
+  }];
+  return plotChart(element, option);
 }
 
 // Highlighted runs, in legend order; the rest show only as grey points
@@ -92,6 +69,8 @@ function buildHighlightSeries(runs, highlight) {
     type: "scatter",
     data: data,
     tooltip: { show: false },
+    // Smaller than ECharts' 10 px default
+    symbolSize: 8,
     z: 3,
   };
 }
@@ -104,7 +83,7 @@ function formatRunTooltip(params) {
       run = item.data.run;
     }
   }
-  const lines = [run.x];
+  const lines = [params[0].axisValueLabel];
   if (run.temp !== null) {
     lines.push(`${Math.round(run.temp)} °C, feels ${Math.round(run.feels)} °C, ` +
       `${run.humidity}% RH`);
@@ -118,44 +97,31 @@ function formatRunTooltip(params) {
 function plotMetresPerBeatChart() {
   const element = document.getElementById("metres-per-beat-chart");
   const runs = JSON.parse(element.dataset.points);
-  const seriesList = [buildAllRunsSeries(runs)];
+  const option = buildChartOption(element, buildSubtitle(element).text);
+  option.tooltip.formatter = formatRunTooltip;
+  // Compact legend below the plot
+  option.legend = {
+    bottom: 0,
+    itemWidth: 10,
+    itemHeight: 10,
+    itemGap: 8,
+    textStyle: { fontSize: 11 },
+  };
+  // Bottom margin set by width below
+  option.grid = { top: 60 };
+  option.series = [buildAllRunsSeries(runs)];
   for (const highlight of HIGHLIGHTS) {
-    seriesList.push(buildHighlightSeries(runs, highlight));
+    option.series.push(buildHighlightSeries(runs, highlight));
   }
-  const chart = echarts.init(element);
-  chart.setOption({
-    baseOption: {
-      title: { text: element.dataset.title, subtext: buildSubtitle(element).text },
-      tooltip: { trigger: "axis", formatter: formatRunTooltip, confine: true },
-      // Compact legend below the plot
-      legend: {
-        bottom: 0,
-        itemWidth: 10,
-        itemHeight: 10,
-        itemGap: 8,
-        textStyle: { fontSize: 11 },
-      },
-      // At least a month between ticks, so day and month labels don't collide
-      xAxis: { type: "time", minInterval: 28 * 24 * 3600 * 1000 },
-      grid: { top: 60 },
-      // About 3 intervals rather than 5, so labels don't crowd
-      yAxis: { type: "value", scale: true, splitNumber: 3 },
-      series: seriesList,
-    },
+  return plotChart(element, {
+    baseOption: option,
     // ECharts reserves no room for the legend: 2 rows on a phone, 1 wider
     media: [
       { query: { maxWidth: 500 }, option: { grid: { bottom: 75 } } },
       { option: { grid: { bottom: 55 } } },
     ],
   });
-  return chart;
 }
 
-const charts = [plotPaceChart(), plotMetresPerBeatChart()];
-
-// ECharts doesn't follow its container's size by itself
-window.addEventListener("resize", () => {
-  for (const chart of charts) {
-    chart.resize();
-  }
-});
+plotPaceChart();
+plotMetresPerBeatChart();

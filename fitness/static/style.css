@@ -18,7 +18,7 @@ nav a {
   margin-left: auto;
 }
 
-/* Outlined in the charts' series blue (SERIES_BLUE in charts.js) */
+/* Outlined in blue (Chart.js's series blue, kept after the move to ECharts) */
 .sync-form button {
   font: inherit;
   font-size: 0.9em;

@@ -1,47 +1,24 @@
-// Chart helpers shared by every page; loaded from base.html.
+// Chart helpers shared by every page; loaded from base.html after ECharts.
 
 // Status colours (bands, highlighted points, bars, rings), one set for
-// every chart; series keep Chart.js's default colours (see SPEC.md)
+// every chart; series keep ECharts' default colours (see SPEC.md)
 const STATUS_COLORS = {
   green: "75, 192, 92",
   yellow: "255, 205, 86",
   orange: "255, 159, 64",
   red: "255, 99, 71",
   blue: "54, 162, 235",
+  purple: "153, 102, 255",
 };
 
 function getStatusColor(name, alpha = 1) {
   return `rgba(${STATUS_COLORS[name]}, ${alpha})`;
 }
 
-// Greys for non-data marks; grid and label greys are Chart.js's defaults
+// Greys for non-data marks: guide for background edges (HRV baseline)
 const GREYS = {
-  grid: Chart.defaults.borderColor,
   guide: "rgba(0, 0, 0, 0.25)",
-  strong: "rgba(0, 0, 0, 0.5)",
-  label: Chart.defaults.color,
 };
-
-// Chart.js's default 1st-series blue, for series given an explicit colour
-function getSeriesBlue(alpha = 1) {
-  return `rgba(54, 162, 235, ${alpha})`;
-}
-
-const SERIES_BLUE = getSeriesBlue();
-
-// Chart titles, left-aligned like the headings they replace
-Chart.defaults.plugins.title.align = "start";
-Chart.defaults.plugins.title.font = { size: 14, weight: "bold" };
-Chart.defaults.plugins.title.padding = { top: 0, bottom: 6 };
-
-function buildTitle(canvas) {
-  return { display: true, text: canvas.dataset.title };
-}
-
-// Subtitles: the latest value and how long ago it was
-Chart.defaults.plugins.subtitle.align = "start";
-Chart.defaults.plugins.subtitle.font = { size: 12 };
-Chart.defaults.plugins.subtitle.padding = { top: 0, bottom: 6 };
 
 // The last point with a value at key, or null if there is none
 function findLatestPoint(points, key) {
@@ -54,11 +31,16 @@ function findLatestPoint(points, key) {
   return latest;
 }
 
-// Whole days from "YYYY-MM-DD" to today, both as local dates (new Date()
-// on the string would parse it as UTC midnight)
-function countDaysAgo(dateText) {
+// "YYYY-MM-DD" as a local date (new Date() on the string would parse it
+// as UTC midnight)
+function parseLocalDate(dateText) {
   const parts = dateText.split("-");
-  const date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+}
+
+// Whole days from "YYYY-MM-DD" to today, both as local dates
+function countDaysAgo(dateText) {
+  const date = parseLocalDate(dateText);
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   // Rounded, as a day across a DST change isn't 24 h
@@ -73,6 +55,15 @@ function formatDaysAgo(days) {
     text = "yesterday";
   }
   return text;
+}
+
+// "Sat, Nov 7", for tooltips
+function formatDate(date) {
+  return date.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 // 75.9, "kg" -> "75.9 kg"; no unit (e.g. ACWR) -> "75.9"
@@ -94,25 +85,12 @@ function buildDatedSubtitle(point, formatPoint) {
   return subtitle;
 }
 
-// "75.9 kg · today" from the canvas's data-points and data-unit;
+// "75.9 kg · today" from the element's data-points and data-unit;
 // formatValue(value, unit) can replace formatWithUnit (e.g. for pace)
-function buildSubtitle(canvas, formatValue = formatWithUnit) {
-  const latest = findLatestPoint(JSON.parse(canvas.dataset.points), "y");
-  const unit = canvas.dataset.unit;
+function buildSubtitle(element, formatValue = formatWithUnit) {
+  const latest = findLatestPoint(JSON.parse(element.dataset.points), "y");
+  const unit = element.dataset.unit;
   return buildDatedSubtitle(latest, (point) => formatValue(point.y, unit));
-}
-
-// Compact legends for every chart, so they wrap less on narrow screens
-Chart.defaults.plugins.legend.labels.boxWidth = 12;
-Chart.defaults.plugins.legend.labels.font = { size: 11 };
-
-// Shared axes for charts of daily values: real-date x-axis, untitled
-// y-axis (units are in the page headings).
-function buildDailyScales() {
-  return {
-    x: { type: "time", time: { unit: "month", tooltipFormat: "MMM d, yyyy" } },
-    y: {},
-  };
 }
 
 // The first band whose label matches, e.g. "HIGH" in ACWR_BANDS
@@ -152,190 +130,53 @@ function isInBand(value, band) {
   return inside;
 }
 
-// Pixel rows a band covers inside the chart area, or null if none
-function getBandPixels(band, area, y) {
-  let top = area.top;
-  if (band.to !== null) {
-    top = Math.max(y.getPixelForValue(band.to), area.top);
+// [date, value] pairs from one key of each point ("y" by default)
+function buildPairs(points, key = "y") {
+  const pairs = [];
+  for (const point of points) {
+    pairs.push([point.x, point[key]]);
   }
-  let bottom = area.bottom;
-  if (band.from !== null) {
-    bottom = Math.min(y.getPixelForValue(band.from), area.bottom);
-  }
-  let pixels = null;
-  if (bottom > top) {
-    pixels = { top: top, bottom: bottom };
-  }
-  return pixels;
+  return pairs;
 }
 
-// Chart.js plugin that shades horizontal y-ranges behind the data and
-// labels them. Each band: { from, to, label, color }; null = open-ended.
-function createBandsPlugin(bands) {
+// Date x-axis for every chart: at least a month between ticks, so day and
+// month labels don't collide; tooltips show the date as formatDate
+function buildDateAxis() {
   return {
-    id: "bands",
-    beforeDatasetsDraw(chart) {
-      const area = chart.chartArea;
-      const ctx = chart.ctx;
-      ctx.save();
-      for (const band of bands) {
-        const pixels = getBandPixels(band, area, chart.scales.y);
-        if (pixels === null) {
-          continue;
-        }
-        ctx.fillStyle = band.color;
-        ctx.fillRect(
-          area.left,
-          pixels.top,
-          area.right - area.left,
-          pixels.bottom - pixels.top,
-        );
-        ctx.fillStyle = GREYS.label;
-        ctx.font = "11px sans-serif";
-        ctx.fillText(band.label, area.left + 4, pixels.top + 12);
-      }
-      ctx.restore();
-    },
+    type: "time",
+    minInterval: 28 * 24 * 3600 * 1000,
+    axisPointer: { label: { formatter: (params) => formatDate(new Date(params.value)) } },
   };
 }
 
-// Chart.js plugin that draws labelled vertical lines behind the data,
-// marking dates. Each marker: { date: "YYYY-MM-DD", label }.
-function createMarkersPlugin(markers) {
+// The frame every chart starts from; pages add series and adjust the rest
+function buildChartOption(element, subtitleText) {
   return {
-    id: "markers",
-    beforeDatasetsDraw(chart) {
-      const area = chart.chartArea;
-      const x = chart.scales.x;
-      const ctx = chart.ctx;
-      ctx.save();
-      for (const marker of markers) {
-        const left = x.getPixelForValue(x.parse(marker.date));
-        if (left < area.left || left > area.right) {
-          continue;
-        }
-        ctx.strokeStyle = GREYS.strong;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.moveTo(left, area.top);
-        ctx.lineTo(left, area.bottom);
-        ctx.stroke();
-        ctx.fillStyle = GREYS.label;
-        ctx.font = "11px sans-serif";
-        ctx.fillText(marker.label, left + 4, area.top + 12);
-      }
-      ctx.restore();
-    },
+    title: { text: element.dataset.title, subtext: subtitleText },
+    // Axis tooltip: its crosshair hides with it on a phone. Kept inside
+    // the chart, so it doesn't run off the screen
+    tooltip: { trigger: "axis", confine: true },
+    xAxis: buildDateAxis(),
+    // Smaller bottom margin than the default, for a taller plot
+    grid: { top: 60, bottom: 30 },
+    // About 3 intervals rather than 5, so labels don't crowd
+    yAxis: { type: "value", scale: true, splitNumber: 3 },
   };
 }
 
-// Chart.js plugin that draws a vertical line at the tooltip's point, so a
-// tap or hover shows where it is on the x-axis; registered for every chart.
-// With plugins.crosshair.horizontal it also draws a horizontal line.
-const CROSSHAIR_PLUGIN = {
-  id: "crosshair",
-  defaults: { horizontal: false },
-  afterDatasetsDraw(chart, args, options) {
-    const active = chart.tooltip.getActiveElements();
-    if (active.length > 0) {
-      const area = chart.chartArea;
-      const point = active[0].element;
-      const ctx = chart.ctx;
-      ctx.save();
-      ctx.strokeStyle = GREYS.guide;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(point.x, area.top);
-      ctx.lineTo(point.x, area.bottom);
-      if (options.horizontal) {
-        ctx.moveTo(area.left, point.y);
-        ctx.lineTo(area.right, point.y);
-      }
-      ctx.stroke();
-      ctx.restore();
-    }
-  },
-};
+const CHARTS = [];
 
-Chart.register(CROSSHAIR_PLUGIN);
-
-// Daily values as dots (no line) plus their 7-day rolling average as a
-// line; read from the canvas's data-points and data-average attributes.
-function plotDailyAverageChart(canvasId, label, plugins = []) {
-  const canvas = document.getElementById(canvasId);
-  return new Chart(canvas, {
-    type: "line",
-    data: {
-      datasets: [
-        {
-          label: label,
-          data: JSON.parse(canvas.dataset.points),
-          showLine: false,
-        },
-        {
-          label: "7-day average",
-          data: JSON.parse(canvas.dataset.average),
-          pointRadius: 0,
-        },
-      ],
-    },
-    options: {
-      maintainAspectRatio: false,
-      interaction: { mode: "index", intersect: false },
-      scales: buildDailyScales(),
-      plugins: {
-        title: buildTitle(canvas),
-        subtitle: buildSubtitle(canvas),
-      }
-    },
-    plugins: plugins,
-  });
+// Draws option into element and keeps the chart for resizing
+function plotChart(element, option) {
+  const chart = echarts.init(element);
+  chart.setOption(option);
+  CHARTS.push(chart);
+  return chart;
 }
 
-// highlight for a point whose value falls in band, otherwise normal
-function pickPointColor(context, band, highlight, normal) {
-  let pointColor = normal;
-  if (context.raw && isInBand(context.raw.y, band)) {
-    pointColor = highlight;
+// ECharts doesn't follow its container's size by itself
+window.addEventListener("resize", () => {
+  for (const chart of CHARTS) {
+    chart.resize();
   }
-  return pointColor;
-}
-
-// Draws the points whose value falls in band in color; the rest keep the
-// dataset's own colour.
-function highlightPoints(chart, band, color) {
-  const dataset = chart.data.datasets[0];
-  dataset.pointBackgroundColor = (context) =>
-    pickPointColor(context, band, color, context.dataset.backgroundColor);
-  dataset.pointBorderColor = (context) =>
-    pickPointColor(context, band, color, context.dataset.borderColor);
-  chart.update();
-}
-
-// Line chart of one daily series; points come from the canvas's
-// data-points attribute. Null values are drawn as gaps. Optional
-// plugins (e.g. createBandsPlugin) are passed through to Chart.js.
-function plotDailyLineChart(canvasId, label, plugins = []) {
-  const canvas = document.getElementById(canvasId);
-  return new Chart(canvas, {
-    type: "line",
-    data: {
-      datasets: [{
-        label: label,
-        data: JSON.parse(canvas.dataset.points),
-      }],
-    },
-    options: {
-      maintainAspectRatio: false,
-      // Tooltip for the hovered date anywhere on the chart, not only on a point
-      interaction: { mode: "index", intersect: false },
-      scales: buildDailyScales(),
-      plugins: {
-        legend: { display: false },
-        title: buildTitle(canvas),
-        subtitle: buildSubtitle(canvas),
-      },
-    },
-    plugins: plugins,
-  });
-}
+});
