@@ -147,11 +147,13 @@ function buildPairs(points, key = "y") {
 }
 
 // Date x-axis for every chart: at least a month between ticks, so day and
-// month labels don't collide; tooltips show the date as formatDate
+// month labels don't collide; tooltips show the date as formatDate. Ends
+// 5% of the range past the last date, so it can be tapped (see SPEC.md)
 function buildDateAxis() {
   return {
     type: "time",
     minInterval: 28 * 24 * 3600 * 1000,
+    max: (extent) => extent.max + (extent.max - extent.min) * 0.05,
     axisPointer: { label: { formatter: (params) => formatDate(new Date(params.value)) } },
   };
 }

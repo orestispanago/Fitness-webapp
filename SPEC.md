@@ -548,6 +548,12 @@ All paths below are inside `fitness/`.
     chosen over "Nov 7, 2026", "Sat, Nov 7, 2026" and "Nov 7
     (yesterday)": the weekday helps with training, and the year adds
     little while the data spans months).
+    Its `max` is 5% of the date range past the last date (2026-11-13):
+    an axis tooltip only opens on a tap inside the grid and snaps to the
+    nearest date, so with the last point on the grid's right edge a
+    phone tap had to land within a pixel or two of it. Chosen over
+    ECharts' draggable `axisPointer.handle`, which added a control and
+    needed a taller bottom margin.
   - `plotChart(element, option)` — creates the chart and keeps it in
     `CHARTS`; one `resize` listener redraws them all, since ECharts
     doesn't follow its container's size by itself.
