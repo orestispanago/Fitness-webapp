@@ -351,8 +351,8 @@ avoid.
 The legend sits below the plot in a compact style (10 px symbols, 11 px
 text). ECharts reserves no room for a legend, so the bottom margin is set
 by width with ECharts' `media` option: 75 px below 500 px wide (2 legend
-rows on a phone), 55 px wider. On phones this chart is 260 px tall
-(`.chart-legend`), not 200, to give the plot back the legend's room.
+rows on a phone), 55 px wider. On phones this chart is 300 px tall
+(`.chart-legend`), not 240, to give the plot back the legend's room.
 Chosen 2026-11-08 over the legend between subtitle and plot, a one-row
 scrolling legend and no legend.
 
@@ -478,7 +478,7 @@ All paths below are inside `fitness/`.
   2026-11-13, once the wider plot left 200 px a flat ~110 px strip,
   chosen over 200, 280 and a smaller title and top margin), and
   the gap below each chart is 16 px instead of 32; the Efficiency Factor
-  chart is 260 px (`.chart-legend`, see the running page). Fixed px
+  chart is 300 px (`.chart-legend`, see the running page). Fixed px
   rather than an aspect ratio: legends take a fixed height, so a ratio
   leaves the legend charts the least plot on narrow phones. The strength
   page's `.chart-small` is 220 px, and 240 px on phones too, to match the
