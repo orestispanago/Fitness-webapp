@@ -158,6 +158,13 @@ function buildDateAxis() {
   };
 }
 
+function getTooltipTrigger() {
+  if (window.matchMedia("(pointer: coarse)").matches) {
+    return "click";
+  }
+  return "mousemove|click";
+}
+
 // The frame every chart starts from; pages add series and adjust the rest
 function buildChartOption(element, subtitleText) {
   return {
@@ -169,8 +176,9 @@ function buildChartOption(element, subtitleText) {
     },
     color: SERIES_COLORS,
     // Axis tooltip: its crosshair hides with it on a phone. Kept inside
-    // the chart, so it doesn't run off the screen
-    tooltip: { trigger: "axis", confine: true },
+    // the chart, so it doesn't run off the screen. Tap-only on touch
+    // screens, so a scroll doesn't open it (see SPEC.md)
+    tooltip: { trigger: "axis", confine: true, triggerOn: getTooltipTrigger() },
     xAxis: buildDateAxis(),
     // Smaller margins than the default, for a taller and wider plot;
     // ECharts widens left to fit the y labels (see SPEC.md)

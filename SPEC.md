@@ -116,8 +116,9 @@ All three pages show full history only — no date range picker.
   Moved from Chart.js on 2026-11-08 for its touch behaviour: Chart.js
   opens a tooltip on `touchstart`, so a scroll that starts on a chart
   opened one, and with no `mouseout` on a touch screen it stayed open
-  until a tap in an empty spot. ECharts opens a tooltip on a tap but not
-  on a scroll, and places it better. Costs: a bigger download (~1.1 MB
+  until a tap in an empty spot. ECharts places it better, but with its
+  default trigger it too opened a tooltip on a scroll once the charts
+  filled a phone's width (see `buildChartOption`'s `triggerOn`). Costs: a bigger download (~1.1 MB
   minified, ~360 KB gzipped, vs ~200 KB for Chart.js) and a rewrite of
   every chart. Tried page by page (strength, running, then fitness one
   chart at a time) with ECharts' defaults first, then adjusting only
@@ -529,6 +530,13 @@ All paths below are inside `fitness/`.
       Factor chart and dropped: on a touch screen nothing hides it, so
       it stayed after a tap. No horizontal crosshair (Chart.js's
       `CROSSHAIR_PLUGIN` option is gone).
+    - `triggerOn: "click"` on touch screens (`pointer: coarse`), the
+      default `"mousemove|click"` elsewhere (2026-11-13): ECharts reads
+      a touch move as a mouse move, so a scroll starting on a chart
+      opened the tooltip and dragged it along. Chosen over `"click"`
+      everywhere (desktop would lose hover) and side gutters to scroll
+      on (undoes the wider charts). A laptop with both touch and a mouse
+      reports `fine` and keeps hover.
     - `confine: true`, so a tooltip near a chart's edge stays inside the
       chart instead of running off a phone screen. Strength sets its own
       tooltip without it (its short tooltip hasn't been seen to
