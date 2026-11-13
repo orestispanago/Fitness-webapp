@@ -113,8 +113,6 @@ function plotMetresPerBeatChart() {
     itemGap: 8,
     textStyle: { fontSize: 11 },
   };
-  // Bottom margin set by width below
-  option.grid = { top: 60 };
   option.series = [buildAllRunsSeries(runs)];
   for (const highlight of HIGHLIGHTS) {
     option.series.push(buildHighlightSeries(runs, highlight));

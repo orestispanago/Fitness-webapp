@@ -172,8 +172,9 @@ function buildChartOption(element, subtitleText) {
     // the chart, so it doesn't run off the screen
     tooltip: { trigger: "axis", confine: true },
     xAxis: buildDateAxis(),
-    // Smaller bottom margin than the default, for a taller plot
-    grid: { top: 60, bottom: 30 },
+    // Smaller margins than the default, for a taller and wider plot;
+    // ECharts widens left to fit the y labels (see SPEC.md)
+    grid: { top: 60, bottom: 30, left: 0, right: 10 },
     // About 3 intervals rather than 5, so labels don't crowd
     yAxis: { type: "value", scale: true, splitNumber: 3 },
   };

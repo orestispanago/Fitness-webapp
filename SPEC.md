@@ -534,6 +534,12 @@ All paths below are inside `fitness/`.
     - `grid: { top: 60, bottom: 30 }`: ECharts' default bottom margin
       (60) left an empty strip under each chart and a plot only ~80 px
       tall on a phone.
+    - `grid: { left: 0, right: 10 }` (2026-11-13): ECharts 6's defaults
+      (`left: '15%'`, `right: '10%'`) left ~80 px of a 328 px phone
+      chart empty. With `left: 0`, ECharts' default `outerBounds` widens
+      the margin just enough for the y labels. Chosen over halving the
+      body padding on phones (16 px gained, nav moved to the edge) and
+      over both.
     - y-axis `scale: true` (not forced to start at 0, as before) and
       `splitNumber: 3` (about 3 intervals instead of ECharts' 5), so the
       labels don't crowd. The count still varies (about 3–8 labels)
