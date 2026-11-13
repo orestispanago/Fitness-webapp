@@ -124,6 +124,11 @@ All three pages show full history only — no date range picker.
   what didn't work.
 - Storage: SQLite (`data/fitness.db`, gitignored),
   accessed via raw SQL (stdlib `sqlite3`) — no ORM.
+- Calculations: pandas (added 2026-11-13, starting with the weight
+  trend), chosen over the standard library alone because more
+  time-series work is planned; with numpy it costs ~60–70 MB on the Pi
+  image. Fits use `statistics.linear_regression` (reads more simply than
+  `np.polyfit`). Queries still return `{x, y}` lists for the templates.
 - Styling: bare-bones HTML/CSS, in `fitness/static/style.css`.
 
 ## Data source
@@ -265,12 +270,38 @@ Rolling averages: resting HR, HRV and weight are charted as daily dots
 (no connecting line; 6 px, Chart.js's size, rather than ECharts' 10 px
 default) plus a 7-day rolling-average line (`buildDailyAverageOption`
 in `fitness.js`). The average is computed in Python
-(`queries.daily.compute_rolling_average`, window `ROLLING_DAYS = 7`): for each stored
+(`queries.daily.calc_7day_rolling_mean`, pandas `rolling("7D")`): for each stored
 day, the mean of the non-null values in the 7 calendar days ending on it
 (fewer values on sparse stretches, e.g. weight on days without a
 weigh-in). 7 days matches Garmin's own 7-day HRV and resting-HR averages
 and cuts the day-to-day jump by 70–85% (weight 0.44 → 0.14 kg, resting
 HR 1.89 → 0.28 bpm, HRV 5.56 → 0.94 ms).
+
+Weight trend (2026-11-13; `queries.daily.calc_weight_change_per_month`,
+`formatWeightTrend` in `fitness.js`): the weight subtitle
+also gives the rate of change in kg/month, the least-squares slope over
+the weigh-ins in the 30 calendar days ending on the latest weigh-in, for
+judging the calorie balance (the rolling average shows the shape but not
+a rate). Over 7 days the slope was too noisy to use (−0.77 ± 0.72
+kg/week at 95%, vs. −0.10 ± 0.08 over 30 days). Calendar days rather
+than the last 30 weigh-ins (tried first): a count stretches back over
+gaps and lags — on 2026-10-15 it still gave −0.85 kg/month from 44 days
+reaching into August, while the last 30 days gave the current −0.43 —
+whereas a gap only makes the calendar window noisier (16 points,
+±0.98 on 2026-09-30), which is visible rather than misleading. Ending on
+the latest weigh-in, not today, as the rolling average does; the
+subtitle's "N days ago" already shows when it's old. Number only, no
+fitted line: on the full-history axis (74.7–81.0 kg) the line was nearly
+flat, and a separate zoomed chart of the last month with the line was
+tried and rejected as one chart too many. Computed in Python, like the rolling average, and passed
+to the chart as a data attribute; the JS only formats it. Subtitle:
+`75.3 kg · 6 days ago · −0.4 kg/month` (the rate appended as one more
+` · ` part, no "trend" word or window note). One decimal, like the
+weight: the 95% range is about ±0.3 kg/month, so a second decimal would
+be noise. A month is 30 days (slope per day × 30), in whole days like
+the 7-day average; 30.44 changes the shown value only at rounding edges.
+Signed both ways (`-0.4` / `+0.4 kg/month`, plain hyphen as elsewhere):
+for a rate the direction is the point, so a gain gets an explicit "+".
 
 | Table | Columns | Shape | Fetch |
 |---|---|---|---|
@@ -278,7 +309,7 @@ HR 1.89 → 0.28 bpm, HRV 5.56 → 0.94 ms).
 | `resting_hr` | `calendar_date` (PK), `resting_hr_bpm` (NOT NULL) | Sparse — days without a reading are absent | `get_rhr_daily` (list of `{calendarDate, value}`; value is a float, rounded to int). The library documents a ~1-year limit per request, so the range is fetched in ≤365-day windows (`split_date_windows` in `sync/common.py`) — one request today; more only once a bootstrap spans over a year |
 | `hrv` | `calendar_date` (PK), `hrv_value`, `hrv_status`, `baseline_low_upper`, `baseline_balanced_low`, `baseline_balanced_upper` (all nullable) | Dense — one row per day in range; null if no overnight reading | `get_hrv_data_range` → `hrvSummaries[i].lastNightAvg` (ms); missing days filled with null. The API rejects ranges over 366 days (400 error), so fetched in ≤365-day windows. Same response: `status` → `hrv_status` (`BALANCED`, `UNBALANCED`, `LOW`; Garmin's `NONE` while calibrating, the first 18 days, is stored as null, as for `training_load`), and `baseline.lowUpper` / `balancedLow` / `balancedUpper` → the three `baseline_*` columns (null while calibrating). Status is stored, not computed: the rule it follows (7-day average inside `balancedLow`–`balancedUpper`, edges included = BALANCED; outside = UNBALANCED; below `lowUpper` = LOW) matched all 99 days with a baseline but is inferred, not documented, LOW has never occurred, and recent days sit within 1 ms of the edge, where our own 7-day average (≤ 1.1 ms off Garmin's) could flip it. `weeklyAvg` and `baseline.markerValue` (Garmin's gauge position) are not stored. Page: the HRV chart draws the balanced range (green) and the strip down to `lowUpper` (yellow, dashed LOW limit) behind the dots and 7-day line, as stacked areas (`buildHrvBaselineSeries` in `fitness.js`, from `queries.daily.load_hrv_baseline` via `data-baseline`; ECharts has no fill between two lines); no legend (ECharts' default); 6 px filled dots on the 7-day line mark days whose Garmin status isn't BALANCED (UNBALANCED orange, LOW red; 3 so far: 2026-10-17, -20, -21; `buildHrvStatusSeries`), so status is read from the line, never from single dots. They replaced 14 px hollow rings (2026-11-08), which on a phone merged into one blob on the consecutive days 10-20 and 10-21; same size as ACWR's HIGH dots, so a coloured dot on a line means a status day on both charts. Compared against smaller rings, rings smaller on phones only, an orange segment of the 7-day line, and no markers; the tooltip names Garmin's status for the day. Since status follows the 7-day average, a single night outside the band (e.g. 93 ms on 2026-09-14, average 82 inside 67–83) is still BALANCED. Added 2026-10-23 (DB rebuilt; strength tables still empty) |
 | `weight` | `calendar_date` (PK), `weight_kg` (NOT NULL) | Sparse — weigh-in days only; the chart line connects weigh-ins | `get_weight_snapshot` → `dateWeightList` (whole range in one request, no limit observed). `weight` is in grams → kg (2 dp). `sourceType == "USER_SETTING"` entries (the weight from Garmin profile settings, not a weigh-in) are skipped. Several weigh-ins on one day → latest by `timestampGMT`. Page: dots plus 7-day line, with the creatine marker (`WEIGHT_MARKERS`) as an ECharts `markLine`, its label running along the line inside the plot (`insideEndTop`) and no end symbols; chosen 2026-11-08 over a larger top margin, a horizontal label drawn with `graphic` and no label, since the default label sat on the subtitle |
-| `sleep` | `calendar_date` (PK), `sleep_duration_minutes` (nullable), `sleep_need_minutes` (NOT NULL) | Sparse — recorded nights only (a missed night has no entry at all, so there's no need value to store; the chart shows no bar for it). Duration stays nullable in case Garmin sends a night with a need but no duration; none so far | `get_sleep_daily` → `values.totalSleepTimeInSeconds` (→ minutes, rounded) and `values.sleepNeed` (already minutes); entries without `sleepNeed` skipped. The library splits ranges into 28-day requests itself. Charted as one bar per night (`queries.daily.load_sleep_shortfall`): duration minus need, in minutes, orange below zero (short of need), blue above — the status orange and blue at 50% opacity (`getShortfallColor`), so the 7-day line stands out (2026-11-08, with the colour theme; full-strength orange filled the chart, as most nights are short); one colour for all bars was tried and rejected, as the sign should show in the colour — plus a 7-day rolling-average line on top (`queries.daily.compute_rolling_average`, as for resting HR/HRV/weight), in the accent colour. Each point also carries the night's sleep (`slept`, minutes), so the tooltip shows `-51 min (slept 6:59)` (`formatMinutes` in `fitness.js`) and the average (`7-day average: -68 min`). Replaces an earlier two-line chart (sleep, dashed sleep need, in hours): the need is ~470 min almost every night, so the flat need line added little, while the gap to it is what matters (short on 88 of 116 nights, by 63 min on average) |
+| `sleep` | `calendar_date` (PK), `sleep_duration_minutes` (nullable), `sleep_need_minutes` (NOT NULL) | Sparse — recorded nights only (a missed night has no entry at all, so there's no need value to store; the chart shows no bar for it). Duration stays nullable in case Garmin sends a night with a need but no duration; none so far | `get_sleep_daily` → `values.totalSleepTimeInSeconds` (→ minutes, rounded) and `values.sleepNeed` (already minutes); entries without `sleepNeed` skipped. The library splits ranges into 28-day requests itself. Charted as one bar per night (`queries.daily.load_sleep_shortfall`): duration minus need, in minutes, orange below zero (short of need), blue above — the status orange and blue at 50% opacity (`getShortfallColor`), so the 7-day line stands out (2026-11-08, with the colour theme; full-strength orange filled the chart, as most nights are short); one colour for all bars was tried and rejected, as the sign should show in the colour — plus a 7-day rolling-average line on top (`queries.daily.calc_7day_rolling_mean`, as for resting HR/HRV/weight), in the accent colour. Each point also carries the night's sleep (`slept`, minutes), so the tooltip shows `-51 min (slept 6:59)` (`formatMinutes` in `fitness.js`) and the average (`7-day average: -68 min`). Replaces an earlier two-line chart (sleep, dashed sleep need, in hours): the need is ~470 min almost every night, so the flat need line added little, while the gap to it is what matters (short on 88 of 116 nights, by 63 min on average) |
 | `training_load` | `calendar_date` (PK), `acwr_status`, `acute_load`, `chronic_load`, `acwr_ratio` (all nullable) | Dense — the API returns every day; all four columns nulled together when `acwrStatus == "NONE"` (onboarding, 06-28 to 07-03). `acwr_ratio` can also be null on days that do have a status (07-04 to 07-10); stored as Garmin reports it, not recomputed (Garmin's ratio isn't a plain acute/chronic division) | `get_weekly_training_status` → `reportData[<deviceId>][i].acuteTrainingLoadDTO`: `acwrStatus`, `dailyTrainingLoadAcute`, `dailyTrainingLoadChronic`, `dailyAcuteChronicWorkloadRatio`. Whole range in one request, no limit observed. Entries with `primaryTrainingDevice == false` skipped. Page: a line of the ratio (`plotAcwrChart`), with shaded status bands behind it (LOW < 0.8, OPTIMAL 0.8–1.5, HIGH ≥ 1.5; `ACWR_BANDS` in `fitness.js`). The cut-offs are inferred from the data — every stored status matches them — not from Garmin documentation; a VERY HIGH status (sports-science literature uses > 2.0) has never been observed, so it has no band yet. The y-axis reaches at least 1.7 (`getAcwrAxisMax`) so the HIGH band is always visible. Points with a ratio in the HIGH band (≥ 1.5, read from `ACWR_BANDS`) are drawn as 6 px red dots (`buildHighlightedPairs`); kept on 2026-11-08 after comparing with no highlight (unlike VO2max's). The other days have no point and the line is 1.5 px instead of the 2 px default (chosen 2026-11-08): with ~120 daily values, ECharts' default hollow rings overlapped into beads, worst on a phone; compared against small filled dots, smaller rings on phones, smoothed, step and daily dots plus 7-day average. Considered and not built (2026-10-25): a daily training-load bar chart under ACWR (per-activity `activityTrainingLoad`, stacked by type) to explain its peaks and dips — the ACWR chart is enough as it is |
 | `calories` | `calendar_date` (PK), `active_kcal` (nullable), `resting_kcal` (NOT NULL) | Sparse — days without data are absent. Daily totals, not per activity (the activity list's `calories` / `bmrCalories` are not stored). Resting is BMR, estimated from the profile, so a null could only be a bug; active stays nullable in case Garmin sends a day with BMR but no movement data (none so far: 131 days from `FIRST_DATA_DATE` with both values, no gaps). The day in progress is partial (resting 1540 on 2026-11-05 vs. ~1830–1934 on full days) and is re-fetched by the shared policy | `get_calories_daily` (same wellness-stats endpoint as `get_rhr_daily`, metric IDs 22 active, 23 BMR; so ≤365-day windows, as for `resting_hr`) → `active`, `resting` (floats, always whole; rounded to int). The library's `total` (its own `active + resting`, with a missing value counted as 0) is not stored; total is derived when needed. Chosen over `get_daily_stats(…, "CALORIES")` (Garmin's own total, range limit untested) and per-day `get_user_summary` (one request per day) for consistency with `resting_hr`. Not charted yet (2026-11-06) |
 
@@ -355,7 +386,7 @@ All paths below are inside `fitness/`.
 - Naming: functions start with a verb, one meaning each — `fetch_*`
   (Garmin API), `parse_*` (response → rows), `store_*` (DB write),
   `sync_*` (all three), `find_*` (DB lookup during sync), `load_*` (DB
-  read for a chart), `compute_*` (a calculation), `build_*` (assemble a
+  read for a chart), `calc_*` (a calculation), `build_*` (assemble a
   data structure), `format_*` (to display text); in JS `plot…` (draws a
   chart now), `get…` (a lookup), `build…`, `format…`. Exceptions: Flask route functions
   (`<page>_page`, `index`, `sync`), `main`, `init_app`. The JS follows the same

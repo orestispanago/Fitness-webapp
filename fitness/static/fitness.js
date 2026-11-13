@@ -110,10 +110,25 @@ function buildMarkLine(markers) {
   return { symbol: "none", data: data };
 }
 
+// "-0.4 kg/month", or "+0.4 kg/month" for a gain (see SPEC.md); rounded
+// first, so -0.04 shows as "0.0" rather than "-0.0"
+function formatWeightTrend(perMonth) {
+  const rounded = Number(perMonth.toFixed(1));
+  let text = `trend ${rounded.toFixed(1)} kg/month`;
+  if (rounded > 0) {
+    text = `+${text}`;
+  }
+  return text;
+}
+
 function plotWeightChart() {
   const element = document.getElementById("weight-chart");
   const option = buildDailyAverageOption(element, "Weight");
   option.series[0].markLine = buildMarkLine(WEIGHT_MARKERS);
+  const trend = JSON.parse(element.dataset.trend);
+  if (trend !== null) {
+    option.title.subtext = `${option.title.subtext} · ${formatWeightTrend(trend)}`;
+  }
   return plotChart(element, option);
 }
 

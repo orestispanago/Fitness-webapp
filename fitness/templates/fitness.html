@@ -11,7 +11,7 @@
   </div>
   <div>
     <div class="chart" id="weight-chart" data-title="Weight" data-unit="kg" data-points='{{ weight | tojson }}'
-      data-average='{{ weight_avg | tojson }}'></div>
+      data-average='{{ weight_avg | tojson }}' data-trend='{{ weight_trend | tojson }}'></div>
   </div>
   <div>
     <div class="chart" id="vo2max-chart" data-title="VO2 max" data-unit="ml/kg/min" data-points='{{ vo2max | tojson }}'>
