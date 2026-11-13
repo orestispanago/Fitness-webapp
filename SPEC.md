@@ -473,13 +473,15 @@ All paths below are inside `fitness/`.
   HRV. The strength page's 280 px `.chart-grid` gets 4 columns at full
   width (3 before the cap was raised; wider charts, i.e. 3 per row, were
   compared and not taken, 2026-11-08). Below 600 px wide (phones)
-  `.chart` is 200 px tall instead of 320 (was 400, then 280: still too
-  tall; 200 is about the height of the Garmin app's phone charts), and
+  `.chart` is 240 px tall instead of 320 (was 400, then 280: still too
+  tall, then 200, about the Garmin app's phone charts; raised to 240 on
+  2026-11-13, once the wider plot left 200 px a flat ~110 px strip,
+  chosen over 200, 280 and a smaller title and top margin), and
   the gap below each chart is 16 px instead of 32; the Efficiency Factor
   chart is 260 px (`.chart-legend`, see the running page). Fixed px
   rather than an aspect ratio: legends take a fixed height, so a ratio
   leaves the legend charts the least plot on narrow phones. The strength
-  page's `.chart-small` is 220 px, and 200 px on phones too, to match the
+  page's `.chart-small` is 220 px, and 240 px on phones too, to match the
   other pages. Its group tabs (`.tabs`, `.tab`) are underlined links,
   the shown group bold in blue (the active tab names the group).
   Nav (2026-11-08): links in grey (`#555`, no underline), the current

@@ -71,13 +71,13 @@ nav a[aria-current="page"] {
   }
 
   .chart {
-    height: 200px;
+    height: 240px;
     margin-bottom: 16px;
   }
 
   /* .chart.chart-small to beat .chart-small's 220px, which comes later */
   .chart.chart-small {
-    height: 200px;
+    height: 240px;
   }
 
   /* Taller for the Efficiency Factor chart, whose legend takes 2 rows */
