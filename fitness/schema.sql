@@ -71,7 +71,8 @@ CREATE TABLE IF NOT EXISTS strength_sessions (
     activity_id INTEGER PRIMARY KEY,
     start_time_local TEXT NOT NULL,
     workout_id INTEGER NOT NULL,
-    session_label TEXT NOT NULL
+    session_label TEXT NOT NULL,
+    exercise_summary TEXT
 );
 
 CREATE TABLE IF NOT EXISTS strength_sets (

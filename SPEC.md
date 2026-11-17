@@ -70,8 +70,8 @@ charts, built incrementally, one vertical slice at a time.
   Since then each exercise is under one name: S1, S2 and S4 have 6
   exercises, S3 has 7. If a new odd name
   appears (most likely on a set added outside the workout's steps), fix
-  it in Garmin and rebuild the DB: sets are fetched once per session, so
-  edits to already-synced sessions are only picked up by a rebuild.
+  it in Garmin; the next sync picks up the edit (see "Activity sync by
+  ID" under "Refresh behavior").
 
   One session group per page, chosen with a row of tabs (links, one per
   group), so the workout you're about to do is found without scrolling
@@ -164,6 +164,46 @@ authenticated session and token cache (own token path, not
     terminal output (`print` in `sync/`).
 - On failure the last-good data stays: `main()` commits once at the end,
   so a failed sync writes nothing.
+- Activity sync by ID (`runs`, `strength_sessions`, `strength_sets`;
+  decided 2026-11-17, replacing the date-window refresh). Edits made in
+  Garmin Connect after a sync (a set's weight or reps, an activity's
+  name) were never picked up: activities were read only from the day of
+  the latest stored one, and inserted if not already stored. Garmin has
+  no "changed since" query: the activity list is filtered by activity
+  date, not edit date, and the only edit timestamp
+  (`metadataDTO.lastUpdateDate`) is in the per-activity detail, one
+  request per activity. So every sync:
+  - Reads the whole activity list from `FIRST_DATA_DATE` (104
+    activities in 3.1 s on 2026-11-17), so edits, late uploads (an
+    activity dated before the latest stored one) and deletions are seen
+    at any age. Chosen over a recent window (e.g. 60 days), which would
+    miss edits to older sessions for good.
+  - Compares it with the DB by `activity_id`: new → insert; stored but
+    any stored field differs → update; identical → nothing; stored but
+    not in Garmin's list → delete (sets cascade).
+  - Deletion guard: if the list has no activities of that table's type,
+    deletions are skipped for that table (an empty read from an API
+    glitch would otherwise empty it). Chosen over no guard and over
+    skipping when more than a few rows would go: every row is restored
+    by the next good sync, so a cut-short list costs little.
+  - Strength sets are fetched only for new sessions and sessions whose
+    `exercise_summary` changed; a changed session's sets are deleted and
+    re-inserted. Weather is fetched only for new runs.
+  - Edit detection for sets: the list's `summarizedExerciseSets` (per
+    exercise: `reps`, `sets`, `volume` = Σ weight × reps in g,
+    `maxWeight`, …) is stored as JSON text in
+    `strength_sessions.exercise_summary` and compared on each sync.
+    Tested 2026-11-17 on the 2026-11-16 session: fixing a 453.5 kg bench
+    set changed bench `volume` and `maxWeight`, adding a rep changed
+    `reps`, `volume` and `totalReps`, each within a minute, always equal
+    to the sets endpoint's totals; saving the edit also trimmed
+    `startTimeLocal`'s seconds (17:36:24 → 17:36:00), and a rename showed
+    in `activityName`. Chosen over two total columns (miss reps moved
+    between exercises) and over rebuilding the summary from stored sets
+    (no new column; matched Garmin's on all 35 sessions) to compare
+    with Garmin's own record rather than a calculation. Missed: an edit
+    that leaves every exercise's reps, sets, volume and max weight
+    unchanged (e.g. swapping the weights of two sets with equal reps).
 - Open decision, deferred until the app is finalized: whether DB setup
   stays a separate `init_db` command or becomes automatic (e.g. a shared
   `ensure_schema()` called by both the sync CLI and the app). Note that
@@ -216,6 +256,16 @@ service on the host).
   `git pull && docker compose up -d --build` (native ARM build on the
   Pi). Chosen on 2026-10-27 over building/pushing an image to a
   registry by hand or from GitHub Actions.
+- Schema changes on the Pi: rebuild the DB (`CREATE TABLE IF NOT
+  EXISTS` never alters a table). After the `git pull`:
+  `docker compose down`, `rm -f data/fitness.db*` (DB and any
+  journal), `docker compose up -d --build` (its start command runs
+  `init_db`, creating the new schema), then a full sync with
+  `docker compose exec fitness python -m fitness.sync` (prints the
+  per-table counts; a full sync from `FIRST_DATA_DATE` takes longer
+  than a normal one and could outlast Cloudflare's ~100 s response
+  limit if run from the Sync button). First used for
+  `exercise_summary` (activity sync by ID, 2026-11-17).
 - Container: port 5000 published on `127.0.0.1` only (reached via the
   tunnel); `/etc/localtime` mounted read-only, since sync uses
   `date.today()` and the container would otherwise run on UTC.
@@ -359,14 +409,14 @@ scrolling legend and no legend.
 
 | Table | Columns | Notes |
 |---|---|---|
-| `runs` | `activity_id` (PK), `start_time_local`, `distance_m`, `duration_s`, `activity_name` (all NOT NULL), `avg_hr`, `location`, `run_type`, `temp_c`, `apparent_temp_c`, `relative_humidity` (nullable) | Every activity with `activityType == "running"` (all run types, not just base-HR). Fetch: `get_activities_by_date(start, end, "running")`, then the type check; `duration_s` = `duration`, `avg_hr` = `averageHR` rounded (nullable: a run recorded without HR is a legitimate state; none so far). `location` and `run_type` are parsed from the name at sync time by `parse_run_name` in `sync/running.py`, so the naming rule lives in one place — strict patterns, no keyword matching: `<Location> - <Type>`, split on the first ` - ` (spaces included), location before, type after, taken as-is; `<Location> Running` (Garmin's automatic name for a run nobody renamed, e.g. `Jeddah Running`) → location, type null (a free run), so forgetting to rename one costs nothing; anything else → both null (a treadmill run might come as `Treadmill Running` and parse as location "Treadmill" — none yet; rename it if it shows up). Hyphens inside the type are kept, so `Base-HR` (custom HR-capped workout) and `Base` (Garmin's suggested workout), and likewise `Threshold-HR` and `Threshold`, are distinct types. Names are fixed at the source, in Garmin Connect, and kept consistent (`Jeddah-Threshold-HR` on 2026-10-10 was renamed to `Jeddah - Threshold-HR`); `Laganas - Base` (2026-09-07, max HR 149) stays `Base` — Garmin's default workout, only under 150 because it was cooler. Base-HR charts select `WHERE run_type = BASE_HR_RUN_TYPE` (`"Base-HR"`, in `config.py`, shared by sync and queries). Pace is derived when charting (`duration_s / distance_m`, shown as `m:ss /km`), not stored. Weather: one `get_activity_weather(activity_id)` call per run in the fetched window, at sync time (so runs stored before these columns existed only get weather from a DB rebuild). It is the nearest station report to the run's start (≤ 25 min off on all 36 runs; Jeddah airport OEJN, Zakynthos LGZA for Laganas), not a watch sensor — the activity list has no temperature fields. `temp` and `apparentTemp` come in whole °F and are converted to °C with 1 decimal (like grams → kg for weights); `relativeHumidity` is a whole % as given. All three are kept, not just temperature, since they come in the same response (chosen 2026-10-30). All three nullable: a run with no report (e.g. treadmill; none so far) is a legitimate state. Refresh: start at `FIRST_DATA_DATE` if empty, else same calendar day as `MAX(start_time_local)` (not +1 day, to avoid missing a second same-day activity a prior refresh only partially caught); insert-if-not-exists by `activity_id` (`store_new`, `INSERT OR IGNORE`; the sync log shows runs found vs. new). Replaced an earlier `base_hr_runs` table that kept base-HR runs only (DB rebuilt on 2026-10-23, before any hand-entered data existed). |
+| `runs` | `activity_id` (PK), `start_time_local`, `distance_m`, `duration_s`, `activity_name` (all NOT NULL), `avg_hr`, `location`, `run_type`, `temp_c`, `apparent_temp_c`, `relative_humidity` (nullable) | Every activity with `activityType == "running"` (all run types, not just base-HR). Fetch: `get_activities_by_date(start, end, "running")`, then the type check; `duration_s` = `duration`, `avg_hr` = `averageHR` rounded (nullable: a run recorded without HR is a legitimate state; none so far). `location` and `run_type` are parsed from the name at sync time by `parse_run_name` in `sync/running.py`, so the naming rule lives in one place — strict patterns, no keyword matching: `<Location> - <Type>`, split on the first ` - ` (spaces included), location before, type after, taken as-is; `<Location> Running` (Garmin's automatic name for a run nobody renamed, e.g. `Jeddah Running`) → location, type null (a free run), so forgetting to rename one costs nothing; anything else → both null (a treadmill run might come as `Treadmill Running` and parse as location "Treadmill" — none yet; rename it if it shows up). Hyphens inside the type are kept, so `Base-HR` (custom HR-capped workout) and `Base` (Garmin's suggested workout), and likewise `Threshold-HR` and `Threshold`, are distinct types. Names are fixed at the source, in Garmin Connect, and kept consistent (`Jeddah-Threshold-HR` on 2026-10-10 was renamed to `Jeddah - Threshold-HR`); `Laganas - Base` (2026-09-07, max HR 149) stays `Base` — Garmin's default workout, only under 150 because it was cooler. Base-HR charts select `WHERE run_type = BASE_HR_RUN_TYPE` (`"Base-HR"`, in `config.py`, shared by sync and queries). Pace is derived when charting (`duration_s / distance_m`, shown as `m:ss /km`), not stored. Weather: one `get_activity_weather(activity_id)` call per new run, at sync time. It is the nearest station report to the run's start (≤ 25 min off on all 36 runs; Jeddah airport OEJN, Zakynthos LGZA for Laganas), not a watch sensor — the activity list has no temperature fields. `temp` and `apparentTemp` come in whole °F and are converted to °C with 1 decimal (like grams → kg for weights); `relativeHumidity` is a whole % as given. All three are kept, not just temperature, since they come in the same response (chosen 2026-10-30). All three nullable: a run with no report (e.g. treadmill; none so far) is a legitimate state. Refresh: by `activity_id` over the whole list (see "Activity sync by ID" in "Refresh behavior"); a renamed run gets its `location` and `run_type` re-parsed. Replaced an earlier `base_hr_runs` table that kept base-HR runs only (DB rebuilt on 2026-10-23, before any hand-entered data existed). |
 
 ### Strength page (2 tables)
 
 | Table | Columns | Notes |
 |---|---|---|
-| `strength_sessions` | `activity_id` (PK), `start_time_local`, `workout_id`, `session_label` (all NOT NULL) | Every activity with `activityType == "strength_training"` **and** a `workoutId` (activities from one of your Garmin Connect workouts); free sessions without one are skipped. Fetch: `get_activities_by_date(start, end)` with no type filter, then the type check — `strength_training` is a sub-type, which the endpoint rejects as a filter (400 "Activity type cannot be an activity sub type"). `session_label` = the activity name as-is (e.g. `S1 Squats`): Garmin names each session after its workout, so the name is the session group, the same idea as `run_type` from run names. Chosen over a hand-entered `workout_sessions` lookup (`workoutId` → label): every workout's 7–8 sessions so far have one `workoutId` and one matching name, and the name needs no table, no seed file and survives rebuilds, while a new workout version (new `workoutId`) with the same name just continues the group. Renaming a workout starts a new group (rename old sessions in Garmin to merge); two different workouts with one name would merge. Refresh: as for `runs` — start at `FIRST_DATA_DATE` if empty, else same calendar day as `MAX(start_time_local)`; insert-if-not-exists by `activity_id` (no 30-day re-scan floor: there is no lookup table whose late registration could make a session be skipped). |
-| `strength_sets` | `activity_id` (FK → `strength_sessions`, `ON DELETE CASCADE`), `set_index` (0-based, ACTIVE sets only), `category`, `reps` (NOT NULL), `name`, `weight_kg` (nullable); PK `(activity_id, set_index)` | Fetched once per session via `get_activity_exercise_sets`, filtered to `setType == "ACTIVE"`, taking `exercises[0]` (Garmin's top detected exercise); each sync fetches sets for every stored session that has none yet (`find_sessions_without_sets`). `weight` is in grams → kg (2 dp). `name` is nullable: Garmin sends only `category` on some sets (25 of 899: 13 pull-up, 12 crunch). `weight_kg` is nullable and stored as given: bodyweight sets come as `0`, `-0` or missing (2 sets). Charts count a missing or `-0` weight as 0 kg added. Names were made consistent at the source (see the strength page in "Pages"). |
+| `strength_sessions` | `activity_id` (PK), `start_time_local`, `workout_id`, `session_label` (all NOT NULL), `exercise_summary` (nullable) | Every activity with `activityType == "strength_training"` **and** a `workoutId` (activities from one of your Garmin Connect workouts); free sessions without one are skipped. Fetch: `get_activities_by_date(start, end)` with no type filter, then the type check — `strength_training` is a sub-type, which the endpoint rejects as a filter (400 "Activity type cannot be an activity sub type"). `session_label` = the activity name as-is (e.g. `S1 Squats`): Garmin names each session after its workout, so the name is the session group, the same idea as `run_type` from run names. Chosen over a hand-entered `workout_sessions` lookup (`workoutId` → label): every workout's 7–8 sessions so far have one `workoutId` and one matching name, and the name needs no table, no seed file and survives rebuilds, while a new workout version (new `workoutId`) with the same name just continues the group. Renaming a workout starts a new group (rename old sessions in Garmin to merge); two different workouts with one name would merge. `exercise_summary` = the list's `summarizedExerciseSets` as JSON text, used only to detect edited sets, not charted. Nullable: what Garmin sends for a workout session with no sets is unknown (all 35 so far have sets and a summary), and such a session is a legitimate state; null vs. null counts as unchanged. Refresh: as for `runs`, by `activity_id` over the whole list (see "Activity sync by ID"). |
+| `strength_sets` | `activity_id` (FK → `strength_sessions`, `ON DELETE CASCADE`), `set_index` (0-based, ACTIVE sets only), `category`, `reps` (NOT NULL), `name`, `weight_kg` (nullable); PK `(activity_id, set_index)` | Fetched via `get_activity_exercise_sets` for new sessions and sessions whose `exercise_summary` changed (then deleted and re-inserted), filtered to `setType == "ACTIVE"`, taking `exercises[0]` (Garmin's top detected exercise). `weight` is in grams → kg (2 dp). `name` is nullable: Garmin sends only `category` on some sets (25 of 899: 13 pull-up, 12 crunch). `weight_kg` is nullable and stored as given: bodyweight sets come as `0`, `-0` or missing (2 sets). Charts count a missing or `-0` weight as 0 kg added. Names were made consistent at the source (see the strength page in "Pages"). |
 
 ## Code structure
 
@@ -425,10 +475,11 @@ All paths below are inside `fitness/`.
 - `sync/` — fetch/transform/store logic for every table, one module
   per page:
   - `__init__.py` — `main()`: log in, open the DB, run each page's
-    `sync_all(conn, client)`, commit once at the end (any failure rolls
-    back the whole run). `__main__.py` just calls it, so the command is
+    `sync_all` (daily: `(conn, client)`; running and strength also get
+    the activity list, read once by `fetch_all_activities` and shared),
+    commit once at the end (any failure rolls back the whole run). `__main__.py` just calls it, so the command is
     still `python -m fitness.sync`.
-  - `common.py` — `open_connection`, `find_activity_start_date`, `store_new`, `split_date_windows`, `list_days_in_range`.
+  - `common.py` — `open_connection`, `split_date_windows`, `list_days_in_range`, and the activity-sync helpers (`fetch_all_activities`, `store_by_id` and the small functions it calls, `format_sync_counts`).
   - `daily.py` — the seven fitness-page tables, `find_daily_start_date`, and
     the per-endpoint range limits (`RESTING_HR_MAX_DAYS`,
     `HRV_MAX_DAYS`, `CALORIES_MAX_DAYS`).
@@ -449,17 +500,20 @@ All paths below are inside `fitness/`.
     columns, rows)` (writes daily rows); in `common.py`, `split_date_windows`
     (split long ranges for endpoints with a per-request limit),
     `list_days_in_range` (fill dense tables), and for the activity tables
-    `find_activity_start_date(conn, table)` (refresh start: day of the latest
-    `start_time_local`) and `store_new(conn, table, columns, rows)`
-    (writes new activity rows; runs, strength sessions and sets). Fetch and parse stay per-table —
+    `store_by_id(conn, table, columns, rows)` (compares by `activity_id`:
+    inserts new, updates changed, deletes missing rows, with the
+    empty-list guard; returns the new, changed and deleted ids; runs and
+    strength sessions), `insert_rows` / `update_rows` (also used for
+    sets and run weather) and `load_stored_rows`. Fetch and parse stay per-table —
     they differ in endpoint and response shape — and so does each
     `sync_<table>`, which shows that table's specifics.
   - Storing: daily rows are written as insert-or-update
     (`INSERT ... ON CONFLICT (calendar_date) DO UPDATE`, a.k.a. "upsert")
     by `store_daily` — new days are added, existing days overwritten.
     Never `INSERT OR REPLACE` (it deletes first, which can fire
-    cascades). Activity tables, which only add rows that don't exist
-    yet, use `store_new` (`INSERT OR IGNORE`).
+    cascades). Activity tables use `store_by_id` (plain `INSERT`,
+    `UPDATE ... WHERE activity_id = ?`, `DELETE`); a session's sets are
+    deleted and re-inserted (`replace_sets`).
 - Templates: `base.html` holds the shared skeleton (doctype, head, the
   stylesheet link, the ECharts CDN script, nav between the pages,
   the Sync button) with a `{% block content %}`; one template per page (`fitness.html`,
@@ -674,6 +728,11 @@ All paths below are inside `fitness/`.
   order), like the exercises within them — a new workout shows up as a
   new tab by itself. One group per page with tabs and a default group
   (see "Pages"): done 2026-11-07.
+
+  Activity sync by ID (see "Refresh behavior"): done 2026-11-17, with
+  `exercise_summary` added to `strength_sessions` (laptop DB rebuilt;
+  the Pi needs the rebuild in "Deployment"). A full sync took 34 s, a
+  sync with no changes 6 s.
 
   The nav in
   `base.html` only links pages that exist; it grows as pages are added.

@@ -1,15 +1,31 @@
-from datetime import date
+import json
 
-from fitness.sync.common import find_activity_start_date, store_new
+from fitness.sync.common import (
+    format_sync_counts,
+    insert_rows,
+    load_stored_rows,
+    store_by_id,
+)
+
+SESSION_COLUMNS = [
+    "activity_id",
+    "start_time_local",
+    "workout_id",
+    "session_label",
+    "exercise_summary",
+]
+
+SET_COLUMNS = [
+    "activity_id",
+    "set_index",
+    "category",
+    "name",
+    "reps",
+    "weight_kg",
+]
 
 
 # strength_sessions
-
-
-def fetch_activities(client, start, end):
-    # No type filter: strength_training is a sub-type, which the endpoint
-    # rejects as a filter
-    return client.get_activities_by_date(start, end)
 
 
 def is_workout_session(activity):
@@ -19,6 +35,15 @@ def is_workout_session(activity):
     if type_key == "strength_training" and activity.get("workoutId"):
         matches = True
     return matches
+
+
+def format_exercise_summary(activity):
+    """Garmin's per-exercise summary as JSON text, compared to detect edits."""
+    summary = activity.get("summarizedExerciseSets")
+    text = None
+    if summary is not None:
+        text = json.dumps(summary, sort_keys=True)
+    return text
 
 
 def parse_sessions(activities):
@@ -32,43 +57,37 @@ def parse_sessions(activities):
                 activity["startTimeLocal"],
                 activity["workoutId"],
                 activity["activityName"],
+                format_exercise_summary(activity),
             )
         )
     return rows
 
 
-def sync_sessions(conn, client):
-    start = find_activity_start_date(conn, "strength_sessions")
-    end = date.today().isoformat()
-    activities = fetch_activities(client, start, end)
-    rows = parse_sessions(activities)
-    columns = [
-        "activity_id",
-        "start_time_local",
-        "workout_id",
-        "session_label",
-    ]
-    new_count = store_new(conn, "strength_sessions", columns, rows)
+def find_sessions_needing_sets(conn, rows):
+    """New sessions and sessions whose exercise summary changed in Garmin."""
+    stored = load_stored_rows(
+        conn, "strength_sessions", ["activity_id", "exercise_summary"]
+    )
+    activity_ids = []
+    for row in rows:
+        activity_id = row[0]
+        if activity_id not in stored or stored[activity_id][1] != row[4]:
+            activity_ids.append(activity_id)
+    return activity_ids
+
+
+def sync_sessions(conn, rows):
+    new_ids, changed_ids, deleted_ids = store_by_id(
+        conn, "strength_sessions", SESSION_COLUMNS, rows
+    )
     print(
-        f"strength_sessions: {len(rows)} found, {new_count} new"
-        f" ({start} to {end})"
+        format_sync_counts(
+            "strength_sessions", len(rows), new_ids, changed_ids, deleted_ids
+        )
     )
 
 
 # strength_sets
-
-
-def find_sessions_without_sets(conn):
-    """Sessions whose sets haven't been fetched yet (normally new ones)."""
-    rows = conn.execute(
-        "SELECT activity_id FROM strength_sessions"
-        " WHERE activity_id NOT IN (SELECT activity_id FROM strength_sets)"
-        " ORDER BY start_time_local"
-    ).fetchall()
-    activity_ids = []
-    for row in rows:
-        activity_ids.append(row[0])
-    return activity_ids
 
 
 def build_set_row(activity_id, set_index, exercise_set):
@@ -97,25 +116,24 @@ def parse_sets(activity_id, response):
     return rows
 
 
-def sync_sets(conn, client):
-    # Sets don't change after a session, so each session's are fetched once
-    activity_ids = find_sessions_without_sets(conn)
-    columns = [
-        "activity_id",
-        "set_index",
-        "category",
-        "name",
-        "reps",
-        "weight_kg",
-    ]
-    new_count = 0
+def replace_sets(conn, client, activity_id):
+    response = client.get_activity_exercise_sets(activity_id)
+    rows = parse_sets(activity_id, response)
+    conn.execute("DELETE FROM strength_sets WHERE activity_id = ?", (activity_id,))
+    insert_rows(conn, "strength_sets", SET_COLUMNS, rows)
+    return len(rows)
+
+
+def sync_sets(conn, client, activity_ids):
+    set_count = 0
     for activity_id in activity_ids:
-        response = client.get_activity_exercise_sets(activity_id)
-        rows = parse_sets(activity_id, response)
-        new_count += store_new(conn, "strength_sets", columns, rows)
-    print(f"strength_sets: {new_count} new for {len(activity_ids)} sessions")
+        set_count += replace_sets(conn, client, activity_id)
+    print(f"strength_sets: {set_count} fetched for {len(activity_ids)} sessions")
 
 
-def sync_all(conn, client):
-    sync_sessions(conn, client)
-    sync_sets(conn, client)
+def sync_all(conn, client, activities):
+    rows = parse_sessions(activities)
+    # Before storing: the comparison needs the old summaries
+    activity_ids = find_sessions_needing_sets(conn, rows)
+    sync_sessions(conn, rows)
+    sync_sets(conn, client, activity_ids)
