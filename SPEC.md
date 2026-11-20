@@ -228,13 +228,29 @@ Raspberry Pi 4 (`aarch64`), served at `fitness.oplab.uk` through the
 existing remotely managed Cloudflare Tunnel (`cloudflared` as a systemd
 service on the host).
 
-- Login: HTTP basic auth, checked in a Flask `before_request` hook
-  against credentials from `.env`. Chosen on 2026-10-27 over Cloudflare
-  Access (no code, but harder to hand a link + credentials to a friend)
-  and a Flask login page (most code, needs sessions and a `secret_key`).
-  One shared pair, `APP_USER` / `APP_PASSWORD` (chosen over a separate
-  guest pair, 2026-10-27): to revoke a guest, change the password.
-  If either is unset, every request gets 401 (fails closed).
+- Login: a Flask login page with a session cookie (2026-11-20,
+  replacing HTTP basic auth), checked in a `before_request` hook
+  against credentials from `.env`. One shared pair, `APP_USER` /
+  `APP_PASSWORD` (chosen over a separate guest pair, 2026-10-27); the
+  form asks for both.
+  Session: permanent, 30-day sliding lifetime (renewed on every
+  request), signed with `SECRET_KEY` from `.env`. To revoke a guest,
+  change the password and `SECRET_KEY` (logs everyone out).
+  Logout: a POST form in the nav after Sync, styled like it, posting to
+  `/logout`, which clears the session. The button is an inline SVG
+  door-arrow icon with `title` and `aria-label` "Log out", so the nav
+  fits one row on a 320 px phone.
+  CSRF: `SESSION_COOKIE_SAMESITE = "Lax"`, no tokens.
+  Not logged in: every request except `/login` and static files
+  redirects to `/login`; a successful login redirects to the Fitness
+  page, a failed one shows the form again with "Wrong username or
+  password" (status 401). `login.html` is standalone (not extending
+  `base.html`): its own `<head>` with `style.css`, no nav, no scripts.
+  Centred form (max 320 px): blue "Fitness" heading, labels above
+  fields, full-width filled accent-blue "Log in" button, error in red
+  above it.
+  `app.py` refuses to start if `APP_USER`, `APP_PASSWORD` or
+  `SECRET_KEY` is unset.
 - Persistent state: `fitness.db` and `.token/` move into a gitignored
   `data/` folder at the project root, on the laptop and in the
   container alike; on the Pi, compose mounts the clone's own `./data`
@@ -450,11 +466,12 @@ All paths below are inside `fitness/`.
   style rules as the Python (no ternaries, explicit `for` loops instead
   of `.map`/`.filter`/`.forEach`, one `return` per function).
 - `app.py` — Flask routes only. Flat, no application factory, no
-  blueprints (not worth the overhead for 3 static pages with no auth and
-  no test suite). Page route functions are named `<page>_page`
+  blueprints (not worth the overhead for 3 pages and no test suite).
+  Page route functions are named `<page>_page`
   (`fitness_page`, `running_page`, `strength_page`); that name is also
   the `url_for` endpoint. `sync` (POST `/sync`) runs the sync; see
-  "Refresh behavior".
+  "Refresh behavior". `login` and `logout` and the `require_login`
+  hook: see "Deployment".
 - `db.py` — per-request SQLite connection via `flask.g` and
   `app.teardown_appcontext`, following Flask's own documented pattern.
 - `queries/` — read-only SQL for the pages, one module per page like

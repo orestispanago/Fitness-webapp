@@ -35,7 +35,8 @@ nav a[aria-current="page"] {
 }
 
 /* Styled like the nav links, in the accent blue; grey while syncing */
-.sync-form button {
+.sync-form button,
+.logout-form button {
   font: inherit;
   padding: 6px 12px;
   border: none;
@@ -45,8 +46,14 @@ nav a[aria-current="page"] {
   cursor: pointer;
 }
 
-.sync-form button:hover:enabled {
+.sync-form button:hover:enabled,
+.logout-form button:hover {
   background: #f0f0f0;
+}
+
+/* Log out is an icon, so the nav fits one row on a 320 px phone */
+.logout-form svg {
+  display: block;
 }
 
 .sync-form button:disabled {
@@ -68,6 +75,10 @@ nav a[aria-current="page"] {
   .sync-form button {
     padding: 6px 8px;
     font-size: 0.9em;
+  }
+
+  .logout-form button {
+    padding: 6px;
   }
 
   .chart {
@@ -134,4 +145,61 @@ nav a[aria-current="page"] {
   border-bottom-color: rgb(0, 114, 178);
   color: rgb(0, 114, 178);
   font-weight: bold;
+}
+
+/* Login page: centred form, filled accent-blue button */
+.login {
+  max-width: 320px;
+  margin: 48px auto 0;
+}
+
+.login h1 {
+  margin: 0 0 8px;
+  color: rgb(0, 114, 178);
+  font-size: 1.3em;
+  text-align: center;
+}
+
+.login label {
+  display: block;
+  margin: 12px 0 4px;
+  color: #555;
+  font-size: 0.9em;
+}
+
+.login input {
+  font: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.login input:focus {
+  outline: 2px solid rgba(0, 114, 178, 0.4);
+  border-color: rgb(0, 114, 178);
+}
+
+.login-error {
+  margin: 12px 0 0;
+  color: #c0392b;
+  font-size: 0.9em;
+}
+
+.login button {
+  font: inherit;
+  width: 100%;
+  margin-top: 20px;
+  padding: 10px;
+  border: none;
+  border-radius: 4px;
+  background: rgb(0, 114, 178);
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.login button:hover {
+  background: rgb(0, 95, 148);
 }

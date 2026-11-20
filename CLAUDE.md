@@ -52,8 +52,8 @@ Personal, single-user Flask + SQLite app that charts Garmin Connect data.
   now). It fails if `data/fitness.db` doesn't exist yet — run `init_db`
   first.
 - Run the app: `.venv/bin/flask --app fitness.app run` (localhost only).
-  Every request needs basic auth with `APP_USER` / `APP_PASSWORD` from
-  `.env`; without them the app answers 401 to everything.
+  Every page needs a login at `/login` with `APP_USER` / `APP_PASSWORD`
+  from `.env`; the app refuses to start without them and `SECRET_KEY`.
 - Deployed on a Raspberry Pi with Docker; see "Deployment" in `SPEC.md`.
 - After adding a dependency, regenerate `requirements.txt` with
   `.venv/bin/pip freeze > requirements.txt`.

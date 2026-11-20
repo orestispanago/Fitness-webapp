@@ -1,39 +1,55 @@
 import hmac
+from datetime import timedelta
 
-from flask import Flask, Response, redirect, render_template, request, url_for
+from flask import Flask, redirect, render_template, request, session, url_for
 
 from fitness import db
-from fitness.config import APP_PASSWORD, APP_USER
+from fitness.config import APP_PASSWORD, APP_USER, SECRET_KEY
 from fitness.queries import daily, running, strength
 from fitness.sync import main as run_sync
 
+if not (APP_USER and APP_PASSWORD and SECRET_KEY):
+    raise RuntimeError("Set APP_USER, APP_PASSWORD and SECRET_KEY in .env")
+
 app = Flask(__name__)
+app.secret_key = SECRET_KEY
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 db.init_app(app)
 
 
-def is_authorized(auth):
-    # Missing APP_USER/APP_PASSWORD denies everyone rather than opening the app.
-    authorized = False
-    if auth is not None and auth.type == "basic" and APP_USER and APP_PASSWORD:
-        user_matches = hmac.compare_digest(
-            auth.username.encode(), APP_USER.encode()
-        )
-        password_matches = hmac.compare_digest(
-            auth.password.encode(), APP_PASSWORD.encode()
-        )
-        if user_matches and password_matches:
-            authorized = True
-    return authorized
+def check_credentials(username, password):
+    user_matches = hmac.compare_digest(username.encode(), APP_USER.encode())
+    password_matches = hmac.compare_digest(password.encode(), APP_PASSWORD.encode())
+    return user_matches and password_matches
 
 
 @app.before_request
 def require_login():
     response = None
-    if not is_authorized(request.authorization):
-        response = Response(
-            "Login required", 401, {"WWW-Authenticate": 'Basic realm="Fitness"'}
-        )
+    if request.endpoint not in ("login", "static") and not session.get("logged_in"):
+        response = redirect(url_for("login"))
     return response
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "GET":
+        response = render_template("login.html")
+    elif check_credentials(request.form["username"], request.form["password"]):
+        session.clear()
+        session["logged_in"] = True
+        session.permanent = True
+        response = redirect(url_for("fitness_page"))
+    else:
+        response = (render_template("login.html", error=True), 401)
+    return response
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
 
 
 def is_local_path(path):

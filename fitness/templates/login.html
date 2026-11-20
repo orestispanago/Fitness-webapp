@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log in · Fitness</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+  <form class="login" method="post" action="{{ url_for('login') }}">
+    <h1>Fitness</h1>
+    <label for="username">Username</label>
+    <input id="username" name="username" autocomplete="username" required autofocus>
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    {% if error %}
+    <p class="login-error">Wrong username or password</p>
+    {% endif %}
+    <button type="submit">Log in</button>
+  </form>
+</body>
+
+</html>
