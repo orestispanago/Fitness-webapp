@@ -33,6 +33,9 @@ charts, built incrementally, one vertical slice at a time.
   heaviest set and how long ago it was first reached (`findRecordPoint`;
   none if no session beat the first one). It replaced (2026-10-29) a
   dashed line across the chart at the last session's heaviest set.
+  A PR set in the group's latest session gets a trophy in front, until
+  the group's next session: "🏆 PR 97.5 kg · 6 days ago"
+  (2026-11-20).
   The line is in the accent colour and the band in the raw-data grey at
   40% opacity (see the colour theme in `charts.js`), the same for every
   group; chosen 2026-11-08 over a light accent-blue band and a light

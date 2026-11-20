@@ -97,11 +97,13 @@ def strength_page():
     selected = strength.choose_group(rows, labels, request.args.get("group"))
     group_rows = strength.filter_group_rows(rows, selected)
     exercises = strength.build_exercise_trends(group_rows)
+    latest_date = strength.find_latest_date(group_rows)
     return render_template(
         "strength.html",
         labels=labels,
         selected=selected,
         exercises=exercises,
+        latest_date=latest_date,
     )
 
 

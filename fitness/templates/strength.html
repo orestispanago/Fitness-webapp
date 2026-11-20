@@ -18,7 +18,8 @@
   {% for exercise in exercises %}
   <div>
     <div class="chart chart-small exercise-chart" data-title="{{ exercise.label }}"
-      data-points='{{ exercise.points | tojson }}'></div>
+      data-points='{{ exercise.points | tojson }}'
+      data-latest-date="{{ latest_date }}"></div>
   </div>
   {% endfor %}
 </div>

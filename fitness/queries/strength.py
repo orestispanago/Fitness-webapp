@@ -90,6 +90,11 @@ def find_latest_label(rows):
     return label
 
 
+def find_latest_date(rows):
+    """Date of the latest session (rows are in session order)."""
+    return get_date_part(rows[-1]["start_time_local"])
+
+
 def choose_group(rows, labels, requested_label):
     """The requested group if it exists, else the default (see SPEC.md)."""
     label = requested_label

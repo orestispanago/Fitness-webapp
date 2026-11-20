@@ -31,13 +31,22 @@ function findRecordPoint(points) {
   return record;
 }
 
+// "PR 97.5 kg", with a trophy if it was set in the group's latest session
+function formatRecord(point, latestDate) {
+  let text = `PR ${point.max} kg`;
+  if (point.x === latestDate) {
+    text = `🏆 ${text}`;
+  }
+  return text;
+}
+
 // One exercise per chart: the average set as a line, with a band from the
 // lightest to the heaviest set behind it and the PR in the subtitle
 function plotExerciseTrendChart(element) {
   const points = JSON.parse(element.dataset.points);
   const subtitle = buildDatedSubtitle(
     findRecordPoint(points),
-    (point) => `PR ${point.max} kg`,
+    (point) => formatRecord(point, element.dataset.latestDate),
   );
   const option = buildChartOption(element, subtitle.text);
   option.tooltip.formatter = (params) => formatTrendTooltip(points, params);
