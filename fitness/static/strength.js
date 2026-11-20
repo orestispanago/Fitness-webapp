@@ -82,6 +82,15 @@ function plotExerciseTrendChart(element) {
   return plotChart(element, option);
 }
 
+// "11 days ago" under each tab's label
+function showLastDone(element) {
+  element.textContent = formatDaysAgo(countDaysAgo(element.dataset.date));
+}
+
+for (const element of document.querySelectorAll(".last-done")) {
+  showLastDone(element);
+}
+
 for (const element of document.querySelectorAll(".exercise-chart")) {
   plotExerciseTrendChart(element);
 }

@@ -94,6 +94,7 @@ def running_page():
 def strength_page():
     rows = strength.load_strength_sets()
     labels = strength.list_session_labels(rows)
+    last_dates = strength.get_latest_dates(rows, labels)
     selected = strength.choose_group(rows, labels, request.args.get("group"))
     group_rows = strength.filter_group_rows(rows, selected)
     exercises = strength.build_exercise_trends(group_rows)
@@ -101,6 +102,7 @@ def strength_page():
     return render_template(
         "strength.html",
         labels=labels,
+        last_dates=last_dates,
         selected=selected,
         exercises=exercises,
         latest_date=latest_date,

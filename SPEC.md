@@ -92,6 +92,9 @@ charts, built incrementally, one vertical slice at a time.
   gets the default. Chosen 2026-11-07 over a slug (`?group=s2-chest`,
   which needs a conversion each way for looks only) and a path segment
   (`/strength/<group>`, a second route; no other page has one).
+  Each tab shows when its group was last done, on a small grey second
+  line under the label ("11 days ago"), so the group due next is seen
+  without opening every tab (2026-11-20).
 
 All three pages show full history only — no date range picker.
 
@@ -465,7 +468,9 @@ All paths below are inside `fitness/`.
   reached ~340 lines across three pages; `common.py` holds the one
   helper shared across pages, `get_date_part` (timestamp → `YYYY-MM-DD`,
   used 4 times). In `strength.py`, the trend charts read sets via
-  `load_strength_sets`; the tabs come from `list_session_labels`,
+  `load_strength_sets`; the tabs come from `list_session_labels`
+  (each with its last date from `get_latest_dates`, shown as "… ago"
+  by `showLastDone` in `strength.js`),
   `choose_group` picks the shown group (`find_latest_label` when none
   or an unknown one is asked for), and `filter_group_rows` →
   `build_exercise_trends` → `group_set_weights` build its charts.

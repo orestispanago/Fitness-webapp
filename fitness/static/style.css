@@ -118,7 +118,16 @@ nav a[aria-current="page"] {
   border-bottom: 3px solid transparent;
   color: #555;
   font-size: 0.9em;
+  text-align: center;
   text-decoration: none;
+}
+
+/* When the group was last done, a grey second line in the tab */
+.last-done {
+  display: block;
+  color: #888;
+  font-size: 0.85em;
+  font-weight: normal;
 }
 
 .tab.active {

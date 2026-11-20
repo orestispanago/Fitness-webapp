@@ -7,9 +7,9 @@
 <div class="tabs">
   {% for label in labels %}
   {% if label == selected %}
-  <a class="tab active" href="{{ url_for('strength_page', group=label) }}" aria-current="page">{{ label }}</a>
+  <a class="tab active" href="{{ url_for('strength_page', group=label) }}" aria-current="page">{{ label }}<span class="last-done" data-date="{{ last_dates[label] }}"></span></a>
   {% else %}
-  <a class="tab" href="{{ url_for('strength_page', group=label) }}">{{ label }}</a>
+  <a class="tab" href="{{ url_for('strength_page', group=label) }}">{{ label }}<span class="last-done" data-date="{{ last_dates[label] }}"></span></a>
   {% endif %}
   {% endfor %}
 </div>

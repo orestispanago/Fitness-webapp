@@ -95,6 +95,14 @@ def find_latest_date(rows):
     return get_date_part(rows[-1]["start_time_local"])
 
 
+def get_latest_dates(rows, labels):
+    """{label: date of the group's latest session}, for the tabs."""
+    dates = {}
+    for label in labels:
+        dates[label] = find_latest_date(filter_group_rows(rows, label))
+    return dates
+
+
 def choose_group(rows, labels, requested_label):
     """The requested group if it exists, else the default (see SPEC.md)."""
     label = requested_label
