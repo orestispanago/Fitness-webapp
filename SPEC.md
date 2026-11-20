@@ -292,6 +292,25 @@ service on the host).
   tunnel); `/etc/localtime` mounted read-only, since sync uses
   `date.today()` and the container would otherwise run on UTC.
 
+## Installable app (PWA)
+
+Decided 2026-11-20.
+
+- No service worker: installable only, no offline viewing.
+- Manifest `static/manifest.webmanifest`: `name` and `short_name`
+  "Fitness", `start_url` `/`, `display` `standalone`, `theme_color` and
+  `background_color` `#ffffff`. Served as a static file, so it needs no
+  login.
+- Icon: a white bold "F" (three rectangles) on the accent blue
+  `#0072B2`. PNGs in `static/`: 192, 512 (also listed as the maskable
+  icon: the F fits the centre safe zone), 180 `apple-touch-icon`, 32
+  favicon. Generated
+  once by a throwaway script; only the PNGs are committed.
+- `base.html` and `login.html` `<head>`: manifest link, favicon (32 and
+  192), `apple-touch-icon`, `apple-mobile-web-app-title` "Fitness",
+  `apple-mobile-web-app-status-bar-style` `default`, `theme-color`
+  `#ffffff`.
+
 ## Database schema
 
 10 tables, SQLite, defined in `schema.sql`. Foreign keys are declared and
